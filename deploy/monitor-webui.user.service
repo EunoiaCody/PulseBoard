@@ -31,13 +31,14 @@ Type=simple
 
 # 项目根目录（按实际路径修改；本仓库位于 ~/Development/PulseBoard）
 WorkingDirectory=%h/Development/PulseBoard
-# 虚拟环境中的 uvicorn
-ExecStart=%h/Development/PulseBoard/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+# 启动命令（监听地址与端口取 config.toml 的 [server] 段）
+ExecStart=%h/Development/PulseBoard/.venv/bin/python %h/Development/PulseBoard/app.py
 
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# 端口冲突时可改用其它端口，例如 8080 需要特权时才用 80
+# 需要时可用环境变量临时覆盖 config.toml（示例）：
 # Environment=PORT=9000
+# Environment=HOST=127.0.0.1
 
 Restart=always
 RestartSec=3

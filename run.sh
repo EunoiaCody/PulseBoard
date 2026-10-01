@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # 一键启动脚本：创建虚拟环境、安装依赖、启动服务
 #
-#   HOST=127.0.0.1 PORT=9000 ./run.sh    # 可用环境变量覆盖
+#   ./run.sh                    # 监听地址与端口取 config.toml 的 [server]
+#   PORT=9000 ./run.sh          # 临时换端口（环境变量优先于配置）
+#   HOST=127.0.0.1 ./run.sh     # 只监听本机
 #   VENV_DIR=.venv PYTHON_BIN=python3.12 ./run.sh
 set -euo pipefail
 
 cd "$(dirname "$0")"
 
-HOST="${HOST:-0.0.0.0}"
-PORT="${PORT:-8080}"
 VENV_DIR="${VENV_DIR:-.venv}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
@@ -54,5 +54,7 @@ if ! "$VENV_PY" -c "import fastapi, uvicorn, psutil, httpx" >/dev/null 2>&1; the
   "$VENV_PY" -m pip install -r requirements.txt
 fi
 
-echo "==> 启动服务： http://${HOST}:${PORT}"
-exec "$VENV_PY" -m uvicorn app:app --host "$HOST" --port "$PORT"
+# 监听地址与端口默认取自 config.toml 的 [server]，环境变量 HOST / PORT 可临时覆盖。
+# 这里故意不传 --host/--port，否则会把 config.toml 里的 [server] 默默覆盖掉。
+echo "==> 启动服务（host/port 取自 config.toml [server]，可用 HOST/PORT 覆盖）"
+exec "$VENV_PY" app.py

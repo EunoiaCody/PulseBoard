@@ -49,11 +49,16 @@
 chmod +x run.sh && ./run.sh
 ```
 
-脚本会自己建虚拟环境、装依赖、启动服务（已装好时自动跳过），然后浏览器访问 `http://<服务器IP>:8080`。
+脚本会自己建虚拟环境、装依赖、按 `config.toml` 的 `[server]` 启动服务（已装好时自动跳过安装），
+然后浏览器访问 `http://<服务器IP>:8080`（端口以 `config.toml` 为准）。
+
+> **改端口只需要改 `config.toml` 里的 `server.port`**，然后重启服务。
+> 想临时试一下不想改配置，就用环境变量（优先级高于配置文件）：
 
 ```bash
 PORT=9000 ./run.sh                        # 换端口
-HOST=127.0.0.1 PORT=9000 ./run.sh         # 只监听本机
+HOST=127.0.0.1 ./run.sh                   # 只监听本机
+HOST=127.0.0.1 PORT=9000 python3 app.py   # 直接跑 app.py 也一样
 MONITOR_CONFIG=/etc/monitor-webui.toml ./run.sh   # 用别的配置文件
 ```
 
@@ -65,7 +70,7 @@ MONITOR_CONFIG=/etc/monitor-webui.toml ./run.sh   # 用别的配置文件
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8080
+.venv/bin/python app.py            # 监听地址/端口读 config.toml [server]
 ```
 
 其它等价方式：
@@ -126,7 +131,9 @@ journalctl -u monitor-webui -f
 常用配置（均在 service 文件里注释说明）：
 
 - `User=` / `Group=`：运行身份；不创建专用用户时改成你自己的用户名即可。
-- `WorkingDirectory=` / `ExecStart=`：**必须指向实际项目路径与虚拟环境里的 uvicorn**。
+- `WorkingDirectory=` / `ExecStart=`：**必须指向实际项目路径**。`ExecStart` 用的是
+  `.venv/bin/python app.py`（不是 `uvicorn --host/--port`），这样监听地址与端口就从
+  `config.toml` 的 `[server]` 读取；需要临时改端口就写 `Environment=PORT=9000`。
 - `Environment=PATH=...`：固定 PATH，确保能找到 `nvidia-smi`、`docker`、`df`。
 - `Restart=always` + `RestartSec=3`：崩溃自动重启。
 - `NoNewPrivileges` / `ProtectSystem=full` / `PrivateTmp` 等加固项：可按需删减。
@@ -221,7 +228,7 @@ sudo systemctl edit monitor-webui               # 不改动原文件地覆盖配
 ```toml
 [server]
 host = "0.0.0.0"      # 0.0.0.0=可被局域网访问；127.0.0.1=仅本机
-port = 8080           # 用 uvicorn --port 启动时以命令行为准
+port = 8080           # 改这里就生效；临时覆盖用 PORT=9000 ./run.sh
 reload = false        # 开发热重载
 log_level = "INFO"    # DEBUG/INFO/WARNING/ERROR
 
@@ -745,6 +752,8 @@ $ curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | head -30
 | 启动日志出现“未识别的配置项” | `config.toml` 里项名拼错了（或写在了错误的段落里）；对照注释修正即可，其它配置照常生效 |
 | `./run.sh` 报 `.venv/bin/activate: No such file or directory` | 上次建虚拟环境失败（如未装 `python3-venv`）留下了一个空壳 `.venv`。现在的 `run.sh` 会检测并自动重建；旧版请手动 `rm -rf .venv` 后再跑 |
 | `./run.sh` 报 `ensurepip is not available` | 当前 Python 缺 venv 模块：`sudo apt install python3-venv`（Debian/Ubuntu）、`sudo dnf install python3`（Fedora） |
+| 改了 `server.port` 却还在 8080 上监听 | 旧版 `run.sh`/service 文件会传 `--host/--port` 把配置覆盖掉（已修复）。若你用 systemd，请把 `ExecStart` 改成 `.venv/bin/python app.py`；或启动时看看日志里的「监听 x.x.x.x:端口」那一行 |
+| 启动报 `address already in use` | 该端口已被占用。换一个 `server.port`，或找出占用进程：`ss -ltnp | grep :8080` |
 | `tomli` 安装被跳过 | 正常：Python 3.11+ 用标准库 `tomllib`，`tomli` 只在 3.10 及更早需要（靠环境标记自动判断） |
 
 ---

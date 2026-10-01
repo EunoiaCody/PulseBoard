@@ -48,14 +48,17 @@ Group=monitor
 # 工作目录必须是项目根目录（app.py、config.toml、collectors/ 所在目录）
 WorkingDirectory=/opt/monitor-webui
 
-# 启动命令：host/port 也可写进 config.toml 的 [server] 段（用 python3 app.py 启动时生效）
-ExecStart=/opt/monitor-webui/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+# 启动命令：host/port/reload/log_level 全部取自 config.toml 的 [server] 段，
+# 所以这里用 `python app.py`（而不是 uvicorn --host/--port，那样会覆盖配置文件）。
+ExecStart=/opt/monitor-webui/.venv/bin/python /opt/monitor-webui/app.py
 
 # 日志不缓冲，保证 journalctl 实时可见
 Environment=PYTHONUNBUFFERED=1
 # 固定 PATH，确保能找到 nvidia-smi / docker / df 等命令
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-# 需要时可用环境变量覆盖其它行为（示例）：
+# 需要时可用环境变量覆盖配置（示例）：
+# Environment=PORT=9000
+# Environment=HOST=127.0.0.1
 # Environment=PYTHONUTF8=1
 
 # ---- 自动重启 -------------------------------------------------------------

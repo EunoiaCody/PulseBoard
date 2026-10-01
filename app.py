@@ -2,14 +2,17 @@
 
 所有配置都在 config.py 中，包含每一项的注释说明。
 启动：
-    uvicorn app:app --host 0.0.0.0 --port 8080   # 端口以命令行为准
-    python3 app.py                               # 使用 config.SERVER_HOST / SERVER_PORT
+    ./run.sh              # 推荐：建虚拟环境 + 装依赖 + 读 config.toml [server] 启动
+    python3 app.py        # 同上（host/port 取自 config.toml [server]）
+    HOST=127.0.0.1 PORT=9000 python3 app.py    # 环境变量可临时覆盖
+    uvicorn app:app --port 9000                # 直接用 uvicorn 时以命令行参数为准
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -200,14 +203,39 @@ async def api_health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _env_port(fallback: int) -> int:
+    """环境变量 PORT 优先，非法值则回退到配置（不抛异常）。"""
+    raw = (os.environ.get("PORT") or "").strip()
+    if not raw:
+        return fallback
+    try:
+        port = int(raw)
+    except ValueError:
+        logging.getLogger("monitor-webui").warning("环境变量 PORT=%r 不是整数，改用配置值 %s", raw, fallback)
+        return fallback
+    if not 1 <= port <= 65535:
+        logging.getLogger("monitor-webui").warning("环境变量 PORT=%s 越界，改用配置值 %s", port, fallback)
+        return fallback
+    return port
+
+
 def main() -> None:
-    """允许 `python3 app.py` 直接启动（读取 config 中的 HOST/PORT/RELOAD/LOG_LEVEL）。"""
+    """允许 `python3 app.py` / `./run.sh` 直接启动。
+
+    监听地址与端口默认取自 config.toml 的 [server]，并允许环境变量
+    HOST / PORT 临时覆盖（systemd 里用 Environment=PORT=9000 同样生效），
+    这样配置文件始终是唯一事实来源，不会被启动脚本默默覆盖。
+    """
     import uvicorn
+
+    host = (os.environ.get("HOST") or "").strip() or str(getattr(config, "SERVER_HOST", "0.0.0.0"))
+    port = _env_port(int(getattr(config, "SERVER_PORT", 8080)))
+    logging.getLogger("monitor-webui").info("监听 %s:%s（config.toml [server]，可用 HOST/PORT 环境变量覆盖）", host, port)
 
     uvicorn.run(
         "app:app",
-        host=str(getattr(config, "SERVER_HOST", "0.0.0.0")),
-        port=int(getattr(config, "SERVER_PORT", 8080)),
+        host=host,
+        port=port,
         reload=bool(getattr(config, "SERVER_RELOAD", False)),
         log_level=str(getattr(config, "LOG_LEVEL", "INFO")).lower(),
     )
