@@ -1,0 +1,89 @@
+# ===========================================================================
+# monitor-webui —— 系统级 systemd 服务示例
+# ===========================================================================
+# 用法：
+#   1) 把项目放到 /opt/monitor-webui（或修改下面的路径），并准备好虚拟环境：
+#        sudo mkdir -p /opt/monitor-webui && sudo cp -r . /opt/monitor-webui/
+#        cd /opt/monitor-webui && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+#   2) 创建专用低权限用户（可选但推荐）：
+#        sudo useradd --system --no-create-home --shell /usr/sbin/nologin monitor
+#        # 需要查看 Docker 容器时，把该用户加入 docker 组：
+#        sudo usermod -aG docker monitor
+#   3) 安装并启动：
+#        sudo cp deploy/monitor-webui.service /etc/systemd/system/
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now monitor-webui
+#   4) 查看日志 / 状态：
+#        systemctl status monitor-webui
+#        journalctl -u monitor-webui -f
+# ===========================================================================
+
+[Unit]
+Description=服务器实时状态 WebUI (monitor-webui)
+Documentation=file:///opt/monitor-webui/README.md
+# 等待网络就绪后再启动（网站检测、Docker API 都依赖网络/本地套接字）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# ---- 运行身份 -------------------------------------------------------------
+# 建议使用专用低权限用户。若尚未创建，可先临时改为你的普通用户。
+User=monitor
+Group=monitor
+
+# 若无法创建专用用户，也可以直接用当前登录用户（二选一，注释掉上面两行）：
+# User=eunoia
+# Group=eunoia
+
+# 需要读取 RAPL 功耗计数器时，通常要求 root：
+#   /sys/class/powercap/intel-rapl*/**/energy_uj 权限为 0400 root
+# 更安全的做法是用 tmpfiles.d 放开读取权限（见 deploy/monitor-webui-rapl.conf），
+# 只有确实需要时才把下面一行取消注释。
+# User=root
+# Group=root
+
+# ---- 运行目录与进程 -------------------------------------------------------
+# 工作目录必须是项目根目录（app.py、config.toml、collectors/ 所在目录）
+WorkingDirectory=/opt/monitor-webui
+
+# 启动命令：host/port 也可写进 config.toml 的 [server] 段（用 python3 app.py 启动时生效）
+ExecStart=/opt/monitor-webui/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+
+# 日志不缓冲，保证 journalctl 实时可见
+Environment=PYTHONUNBUFFERED=1
+# 固定 PATH，确保能找到 nvidia-smi / docker / df 等命令
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# 需要时可用环境变量覆盖其它行为（示例）：
+# Environment=PYTHONUTF8=1
+
+# ---- 自动重启 -------------------------------------------------------------
+Restart=always
+RestartSec=3
+# 收到 SIGINT 时 uvicorn 会优雅退出
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+# ---- 日志 -----------------------------------------------------------------
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monitor-webui
+
+# ---- 安全加固（可选，按需调整）--------------------------------------------
+# 注意：PrivateTmp=yes 会给服务一个**私有 /tmp**，因此把自定义配置放在 /tmp 下
+#       （例如 MONITOR_CONFIG=/tmp/my.toml）服务是读不到的，请放到项目目录或 /etc。
+NoNewPrivileges=yes
+PrivateTmp=yes
+# 把 /usr /boot /etc 挂载为只读（不影响读取传感器与 /proc）
+ProtectSystem=full
+ProtectControlGroups=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectClock=yes
+RestrictSUIDSGID=yes
+# ⚠ 项目若放在 /home 下，必须保持 ProtectHome=no，否则服务读不到代码
+ProtectHome=no
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,56 @@
+# ===========================================================================
+# monitor-webui —— 用户级（systemd --user）服务示例
+# ===========================================================================
+# 适合“不想用 root、项目放在自己家目录”的场景。
+#
+# 用法：
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/monitor-webui.user.service ~/.config/systemd/user/monitor-webui.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now monitor-webui
+#   systemctl --user status monitor-webui
+#   journalctl --user -u monitor-webui -f
+#
+# 让服务在“未登录时也能开机自启”（重要）：
+#   sudo loginctl enable-linger "$USER"
+#
+# 说明：
+#   * %h 会被 systemd 展开为当前用户的家目录。
+#   * 用户级服务默认无法读取 RAPL（需要 root），功耗会显示 N/A，属正常现象。
+#   * 若 Docker 卡片提示权限不足，把用户加入 docker 组后重新登录：
+#       sudo usermod -aG docker "$USER"
+# ===========================================================================
+
+[Unit]
+Description=服务器实时状态 WebUI (monitor-webui, user)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# 项目根目录（按实际路径修改；本仓库位于 ~/Development/PulseBoard）
+WorkingDirectory=%h/Development/PulseBoard
+# 虚拟环境中的 uvicorn
+ExecStart=%h/Development/PulseBoard/.venv/bin/uvicorn app:app --host 0.0.0.0 --port 8080
+
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# 端口冲突时可改用其它端口，例如 8080 需要特权时才用 80
+# Environment=PORT=9000
+
+Restart=always
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=monitor-webui
+
+# 用户级服务同样可以做一些加固
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,6 @@
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+psutil>=5.9
+httpx>=0.27
+# Python 3.11+ 自带 tomllib，无需额外依赖；3.10 及更早需要 tomli
+tomli>=2.0; python_version < "3.11"

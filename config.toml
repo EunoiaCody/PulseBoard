@@ -1,0 +1,309 @@
+# =============================================================================
+# monitor-webui 配置文件（TOML）
+# =============================================================================
+# 语法要点：
+#   * 注释用 #            —— TOML 原生支持注释（这也是本项目不用 JSON 的原因）
+#   * 字符串要用双引号；布尔值只能写 true / false（小写）；数字不要加引号
+#   * [section] 表示一个表；[[array]] 表示数组表（网站列表用的就是它）
+#   * 修改本文件后需要重启服务：systemctl restart monitor-webui（uvicorn --reload 时自动生效）
+#
+# 容错说明（由 config.py 保证）：
+#   * 本文件即使删掉某一项也不会报错，会用 config.py 里的内置默认值；
+#   * 类型写错（例如把数字写成字符串）会尽量自动转换，失败则回退默认值并打印提示；
+#   * 拼错配置项名不会被当成错误，但启动日志里会出现“未识别的配置项”提示；
+#   * 任何配置问题都不会让服务启动失败或让 /api/status 报错。
+#
+# 想用其它路径的配置文件：设置环境变量 MONITOR_CONFIG=/path/to/config.toml
+# =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# 1. 服务：进程如何监听
+# -----------------------------------------------------------------------------
+[server]
+# 监听地址。0.0.0.0 = 允许局域网/公网访问；127.0.0.1 = 仅本机可访问
+host = "0.0.0.0"
+# 监听端口。用 `uvicorn app:app --port 8080` 启动时，以命令行参数为准
+port = 8080
+# 是否开启代码热重载（仅开发时使用，生产建议 false）
+reload = false
+# 日志级别：DEBUG / INFO / WARNING / ERROR
+log_level = "INFO"
+
+
+# -----------------------------------------------------------------------------
+# 2. 页面标题
+# -----------------------------------------------------------------------------
+[page]
+# 浏览器标签页标题，同时也是页面顶部大标题
+title = "服务器实时状态"
+
+
+# -----------------------------------------------------------------------------
+# 3. 前端刷新与显示
+# -----------------------------------------------------------------------------
+[frontend]
+# 前端轮询间隔（毫秒）。浏览器每隔这么久请求一次 /api/status，建议 >= 1000
+refresh_interval_ms = 3000
+# 前端单次请求超时（毫秒），超时后页面显示“连接失败”并在下一轮自动重试，建议 >= 刷新间隔
+fetch_timeout_ms = 8000
+# 进度条黄色阈值（百分比）：使用率 >= 该值时进度条变黄
+bar_warn_percent = 75.0
+# 进度条红色阈值（百分比）：使用率 >= 该值时进度条变红
+bar_crit_percent = 90.0
+# 网络速度单位切换阈值（字节/秒）：速度 >= 该值显示 MB/s，否则显示 KB/s（1048576 = 1 MiB/s）
+speed_mb_threshold_bps = 1048576
+
+
+# -----------------------------------------------------------------------------
+# 4. CPU 占用率
+# -----------------------------------------------------------------------------
+[cpu]
+# 是否采集 CPU 总占用率（psutil.cpu_percent，多核平均值）
+usage_enabled = true
+
+
+# -----------------------------------------------------------------------------
+# 5. CPU 温度
+# -----------------------------------------------------------------------------
+[cpu.temp]
+# 是否采集 CPU 温度。false 时页面显示“不可用”
+enabled = true
+# psutil 传感器芯片名优先级列表：
+#   coretemp=Intel，k10temp/zenpower=AMD，cpu_thermal=ARM，acpitz=ACPI，it87=ITE 芯片
+chips = ["coretemp", "k10temp", "zenpower", "cpu_thermal", "acpitz", "it87"]
+# 传感器标签关键词（小写）：优先取包含这些词的读数，如 Intel 的 “Package id 0”、AMD 的 “Tctl”
+label_hints = ["package", "tctl", "tdie", "cpu", "core"]
+# psutil 读不到时的兜底：sysfs 温度区域路径通配符
+zone_glob = "/sys/class/thermal/thermal_zone*"
+# 只接受 type 中包含以下关键词的 sysfs 区域（避免取到硬盘/电池温度）
+zone_keywords = ["cpu", "x86_pkg", "soc", "pkg"]
+# 温度合理区间（摄氏度），越界的读数会被丢弃，防止出现 0 或 1000 之类的异常值
+min_c = -20.0
+max_c = 150.0
+
+
+# -----------------------------------------------------------------------------
+# 6. 内存与 Swap
+# -----------------------------------------------------------------------------
+[memory]
+# 是否采集内存与 Swap 使用情况
+enabled = true
+
+
+# -----------------------------------------------------------------------------
+# 7. 系统运行时间
+# -----------------------------------------------------------------------------
+[uptime]
+# 是否采集系统运行时间
+enabled = true
+# 文本模板，可用占位符：{days} {hours} {minutes} {seconds}
+text_template = "{days}天 {hours}小时 {minutes}分钟"
+# 不足 1 天时是否隐藏 “0天”
+hide_zero_days = true
+
+
+# -----------------------------------------------------------------------------
+# 8. 磁盘使用率
+# -----------------------------------------------------------------------------
+[disk]
+# 是否采集磁盘使用率
+enabled = true
+# 只监控一个分区时用这一项（默认根分区）。配了下面的 items 后本项失效
+path = "/"
+
+# ── 监控多个分区：取消下面任意一种写法的注释（两种不能同时用）──
+# ① 简写：只写路径，标签就显示路径本身
+# items = ["/", "/home", "/data"]
+#
+# ② 完整写法：可以给每个分区起名字，名字会显示在标签里
+# [[disk.items]]
+# name = "系统盘"
+# path = "/"
+#
+# [[disk.items]]
+# name = "数据盘"
+# path = "/data"
+#
+# 提示：填不存在的路径不会报错，该行会显示“不可用”与原因，其余分区不受影响。
+
+
+# -----------------------------------------------------------------------------
+# 9. 网络速率
+# -----------------------------------------------------------------------------
+[network]
+# 是否采集网络上下行速率
+enabled = true
+# 只监控一张网卡时写这里；不指定留空。配了下面的 items 后本项失效
+interface = ""
+
+# ── 监控多张网卡：取消下面任意一种写法的注释（两种不能同时用）──
+# 网卡名字可用 `ls /sys/class/net` 或 `ip -br link` 查看
+# ① 简写：只写网卡名，标签就显示网卡名
+# items = ["enp3s0", "wlan0"]
+#
+# ② 完整写法：可以给每张网卡起名字
+# [[network.items]]
+# name = "有线"
+# interface = "enp3s0"
+#
+# [[network.items]]
+# name = "无线"
+# interface = "wlan0"
+#
+# 每张网卡会占两行（下载、上传），顺序与这里一致。
+
+# 未指定网卡（interface 为空且未配 items）时生效：
+# true = 汇总所有网卡（含回环 lo）；false = 只汇总非回环网卡
+include_loopback = true
+# 两次采样的最小间隔（秒）。间隔小于该值时沿用上次结果，避免速度数值被异常放大
+min_interval_s = 0.05
+
+
+# -----------------------------------------------------------------------------
+# 10. 功耗（GPU / CPU / 整机，三者独立，读取失败只影响自己那一项）
+# -----------------------------------------------------------------------------
+[power]
+# 功耗采集总开关。false 时所有功耗项显示 N/A
+enabled = true
+
+# --- GPU 功耗（NVIDIA）---
+[power.gpu]
+# 是否采集 GPU 功耗（关闭后整机功耗也只用 CPU/电源供应器估算）
+enabled = true
+# --- 数据源 1：NVIDIA 独显（仅在装了 nvidia-smi 的机器上生效）---
+# nvidia-smi 可执行文件路径；命令不在 PATH 中时可写绝对路径 "/usr/bin/nvidia-smi"
+nvidia_smi_path = "nvidia-smi"
+# nvidia-smi 执行超时（秒）。超时或命令不存在都只返回“不可用”
+nvidia_smi_timeout = 3.0
+# 查询字段。默认只查功耗；也可改成 "name,temperature.gpu,power.draw,utilization.gpu"
+nvidia_smi_query = "power.draw"
+# 多张 GPU 时是否把各卡功耗相加；false = 只取第一张卡
+sum_all = true
+# --- 数据源 2：AMD / Intel 独显的 hwmon 功耗节点（无需 nvidia-smi）---
+# 文件内容单位为微瓦，程序会自动转成瓦；多个文件（多张卡）时相加
+# 想关掉这个数据源就写成 hwmon_power_files = []
+hwmon_power_files = ["/sys/class/drm/card*/device/hwmon/hwmon*/power1_average"]
+# --- 数据源 3：Intel 核显（RAPL uncore 域，无需 nvidia-smi）---
+# Intel 核显的功耗包含在名为 uncore 的 RAPL 域里
+rapl_keywords = ["uncore"]
+# 提示：AMD APU（如锐龙 5000 移动版）的核显与 CPU 共享一个 package 域，
+# 没有独立 GPU 功耗节点，此时功耗行会显示“CPU xx W（GPU 不可用）”，这是正常现象。
+# 想看 GPU 占用率，可在 [cli.commands] 里用 sysfs：见 gpu_busy_percent 说明。
+
+# --- CPU / 封装功耗（Linux RAPL，Intel/AMD）---
+[power.cpu]
+# 是否采集 CPU（RAPL package 域）功耗
+enabled = true
+# RAPL 能量计数器文件通配符路径，常见：
+#   /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+#   /sys/class/powercap/amd-rapl/.../energy_uj
+rapl_glob = "/sys/class/powercap/*/energy_uj"
+# 域名关键词（小写）：匹配到的视为 CPU/封装功耗
+package_keywords = ["package"]
+# 域名关键词（小写）：匹配到的视为整机/平台功耗（Intel psys）
+psys_keywords = ["psys"]
+# 两次采样的最小间隔（秒）。RAPL 靠能量差算功率，间隔太短会不准（首次请求通常为 null）
+min_interval_s = 0.25
+# 功率合理上限（瓦），超过视为坏数据并丢弃
+max_watts = 2000.0
+
+# --- 整机功耗 ---
+[power.total]
+# 是否尝试读取整机/平台功耗（RAPL psys 或电源供应器）
+enabled = true
+# 电源供应器功率文件通配符（笔记本常见，单位微瓦）。台式机通常没有，读不到显示 N/A 属正常
+power_supply_glob = "/sys/class/power_supply/*/power_now"
+
+
+# -----------------------------------------------------------------------------
+# 11. 网站状态检测
+# -----------------------------------------------------------------------------
+[websites]
+# 是否检测网站状态。false 时页面显示“网站检测已关闭”
+enabled = true
+# 单个网站请求超时（秒）。所有网站并发检测，总耗时约等于最慢的一个
+timeout = 5.0
+# HTTP 方法：通常用 "GET"；只关心可用性时可改 "HEAD"（更省流量，部分服务器不支持）
+method = "GET"
+# 是否跟随 301/302 重定向
+follow_redirects = true
+# 是否校验 HTTPS 证书。自签证书的内网站点可设为 false
+verify_ssl = true
+# User-Agent 请求头；目标站点拦截默认 UA 时可自行修改
+user_agent = "monitor-webui/1.0"
+# 额外请求头，例如 { Authorization = "Bearer xxx" }；不需要时留空表
+headers = {}
+# 状态码小于该值视为“正常”（默认 1xx/2xx/3xx 正常，4xx/5xx 异常）
+ok_max_code = 400
+# 并发检测上限（同时进行的请求数），网站很多时避免一次性打满网络
+max_concurrency = 10
+# 错误信息最大长度（字符），超出截断，避免长异常信息破坏页面
+error_max_len = 120
+
+# 网站列表：想加网站就复制一组 [[websites.items]] 段落
+[[websites.items]]
+name = "官网"
+url = "https://example.com"
+
+[[websites.items]]
+name = "API"
+url = "https://example.com/health"
+# 可选：单独覆盖该站点的超时时间（秒）
+# timeout = 3.0
+
+
+# -----------------------------------------------------------------------------
+# 12. CLI 信息（安全白名单：网页端无法传入命令）
+# -----------------------------------------------------------------------------
+# 安全约束（由 collectors/cli.py 保证）：
+#   * 只执行本文件里写好的命令；
+#   * 始终以参数列表调用，绝不使用 shell=True；
+#   * 每条命令都有超时；输出会截断；
+#   * 命令不存在 / 超时 / 非零退出码都只显示错误信息，不影响其它指标。
+[cli]
+# CLI 采集总开关
+enabled = true
+# 单条命令超时（秒）
+timeout = 5
+# 单条命令 stdout 最大字符数，超出截断并提示“(输出已截断)”
+max_output = 3000
+# 单条命令 stderr 最大字符数（只在命令失败时展示）
+stderr_max = 500
+# 同时执行的命令数量上限
+max_concurrency = 6
+# 命令的工作目录；留空字符串 "" 表示继承服务进程当前目录
+cwd = ""
+# 追加给子进程的环境变量，例如 { LANG = "C", LC_ALL = "C" } 可让输出更稳定的英文文本；
+# 不需要时留空表
+extra_env = {}
+
+# 命令白名单：key = 展示标识，value = 参数列表（必须是数组，不能写成一整个字符串）
+[cli.commands]
+# AMD/Intel 显卡的占用率：sysfs 直接可读，无需 root、无需第三方工具
+# 路径里的 card0/card1 因机器而异，先用这条命令确认：
+#   ls /sys/class/drm/card*/device/gpu_busy_percent
+# 输出是一个百分比整数（如 7 表示 7%）。想知道路径的话可以改用：
+#   gpu_path = ["ls", "/sys/class/drm/card*/device/"]
+gpu = ["cat", "/sys/class/drm/card1/device/gpu_busy_percent"]
+# 有 NVIDIA 卡时，把上面这行换成（输出含温度/功耗/利用率/显存）：
+# gpu = ["nvidia-smi", "--query-gpu=name,temperature.gpu,power.draw,utilization.gpu,memory.used,memory.total", "--format=csv,noheader"]
+disk = ["df", "-h", "/"]
+docker = ["docker", "ps", "--format", "{{.Names}}: {{.Status}}"]
+# 按需取消注释：
+# sensors = ["sensors"]          # 传感器温度（intel/amd 通用）
+# vram = ["cat", "/sys/class/drm/card1/device/mem_info_vram_used"]   # AMD 显存占用（字节）
+# freq = ["cat", "/sys/class/drm/card1/device/mem_info_vram_total"]  # AMD 显存总量（字节）
+# services = ["systemctl", "is-active", "ssh", "nginx"]
+# load = ["uptime"]
+# who = ["who"]
+
+# 卡片标题：key 与上面的命令 key 对应；没配的 key 会直接显示 key 本身
+[cli.labels]
+gpu = "GPU 占用"
+disk = "磁盘"
+docker = "Docker"
+services = "服务"
+sensors = "传感器"
+load = "负载"
+who = "登录用户"

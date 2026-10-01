@@ -1,0 +1,23 @@
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ---- 本地 Agent 工具链（由 skill 安装器生成，不属于本项目）----
+.agents/
+.pi/
+data/skills/
+skills-lock.json
+
+# ---- 个人配置 ----
+# 用 MONITOR_CONFIG 指向的私有配置不会被提交；这里再兜一层
+config.local.toml
+
+# ---- 日志 / 编辑器 / 系统 ----
+*.log
+.vscode/
+.idea/
+*.swp
+.DS_Store

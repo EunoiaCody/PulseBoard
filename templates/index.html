@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="服务器实时状态：CPU、内存、磁盘、网络、功耗、网站可用性与预设命令输出">
+  <title>服务器实时状态</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <div class="sheet">
+    <header class="masthead">
+      <h1 class="masthead__title" id="page-title">服务器实时状态</h1>
+      <p class="live">
+        <span class="dot" id="service-dot" data-state="unknown" aria-hidden="true"></span>
+        <span class="live__state" id="service-state" role="status" aria-live="polite">正在连接</span>
+      </p>
+    </header>
+
+    <main class="main" id="main">
+      <!-- 读数：右对齐的数值列，用发丝线分行，分组用较强分隔线表达 -->
+      <section class="section section--vitals" aria-labelledby="vitals-heading">
+        <h2 class="section__title" id="vitals-heading">读数</h2>
+
+        <dl class="readouts" id="readouts">
+          <div class="readout">
+            <dt class="readout__label">CPU 占用</dt>
+            <dd class="readout__value">
+              <span class="readout__figure" id="cpu-usage" data-na="true">—</span>
+              <span class="readout__unit">%</span>
+              <span class="readout__note" id="cpu-usage-note">多核平均占用率</span>
+              <span class="gauge__fill" id="cpu-usage-gauge" aria-hidden="true"></span>
+            </dd>
+          </div>
+
+          <div class="readout" data-break>
+            <dt class="readout__label">CPU 温度</dt>
+            <dd class="readout__value">
+              <span class="readout__figure" id="cpu-temp" data-na="true">—</span>
+              <span class="readout__unit">°C</span>
+              <span class="readout__note" id="cpu-temp-note" hidden>—</span>
+            </dd>
+          </div>
+
+          <div class="readout">
+            <dt class="readout__label">内存</dt>
+            <dd class="readout__value">
+              <span class="readout__figure" id="mem-percent" data-na="true">—</span>
+              <span class="readout__unit">%</span>
+              <span class="readout__note" id="mem-note" hidden>—</span>
+              <span class="gauge__fill" id="mem-gauge" aria-hidden="true"></span>
+            </dd>
+          </div>
+
+          <div class="readout" data-break>
+            <dt class="readout__label">Swap</dt>
+            <dd class="readout__value">
+              <span class="readout__figure" id="swap-percent" data-na="true">—</span>
+              <span class="readout__unit" id="swap-unit">%</span>
+              <span class="readout__note" id="swap-note" hidden>—</span>
+              <span class="gauge__fill" id="swap-gauge" aria-hidden="true"></span>
+            </dd>
+          </div>
+
+          <!-- 磁盘与网卡的行数取决于 config.toml，由 JS 在此处（功耗行之前）按顺序插入 -->
+
+          <div class="readout" data-break id="power-row">
+            <dt class="readout__label">功耗</dt>
+            <dd class="readout__value">
+              <span class="readout__figure" id="power-total" data-na="true">—</span>
+              <span class="readout__unit">W</span>
+              <span class="readout__note" id="power-note" hidden>—</span>
+            </dd>
+          </div>
+
+          <div class="readout" data-break>
+            <dt class="readout__label">运行时间</dt>
+            <dd class="readout__value">
+              <span class="readout__figure readout__figure--text" id="uptime-text" data-na="true">—</span>
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- 网站：名称列内联错误原因，状态同时用颜色与文字表达 -->
+      <section class="section" aria-labelledby="sites-heading">
+        <h2 class="section__title" id="sites-heading">网站</h2>
+        <table class="sites" id="sites-table" hidden>
+          <caption class="sr-only">各网站当前可用性、HTTP 状态码与响应延迟</caption>
+          <thead>
+            <tr>
+              <th scope="col">名称</th>
+              <th scope="col">状态</th>
+              <th scope="col">HTTP</th>
+              <th scope="col">延迟</th>
+            </tr>
+          </thead>
+          <tbody id="sites-body"></tbody>
+        </table>
+        <p class="empty" id="sites-empty">正在读取数据…</p>
+      </section>
+
+      <!-- 命令行信息：原生折叠，展开状态在刷新之间保留 -->
+      <section class="section" aria-labelledby="cli-heading">
+        <h2 class="section__title" id="cli-heading">命令行信息</h2>
+        <div id="cli-list"></div>
+        <p class="empty" id="cli-empty">正在读取数据…</p>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
