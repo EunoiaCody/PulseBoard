@@ -20,9 +20,9 @@ MONITOR_CONFIG
 --------
     CONFIG_PATH      当前使用的配置文件路径（str）
     CONFIG_LOADED    是否成功读到配置文件（bool）
-    load_config()    重新读取配置并返回 {变量名: 值}（不改动模块变量）
-    reload_config()  重新读取并**应用**到模块变量（热更新，可手动调用）
+    LOAD_WARNINGS    加载过程中的提示（list[str]）
     validate()       返回配置提示列表（app.py 启动时打印到日志）
+    其余所有 config.X 由 config.toml 逐项生成，无需在此声明。
 """
 
 from __future__ import annotations
@@ -303,13 +303,6 @@ def load_config(path: str | None = None) -> dict[str, Any]:
     return {_to_python_name(p): copy.deepcopy(v) for p, v in merged.items()}
 
 
-def reload_config(path: str | None = None) -> dict[str, Any]:
-    """重新读取配置并应用到模块变量（可在运行中手动调用，path 为空时用 CONFIG_PATH）。"""
-    values = load_config(path)
-    globals().update(values)
-    return values
-
-
 # ---------------------------------------------------------------------------
 # 5. 启动自检
 # ---------------------------------------------------------------------------
@@ -362,15 +355,6 @@ def validate() -> list[str]:
         warnings.append("cpu.temp.min_c 必须小于 cpu.temp.max_c")
 
     return warnings
-
-
-def summary() -> dict[str, Any]:
-    """返回一份便于排查的配置摘要（供 /api/config 之类的只读接口使用）。"""
-    return {
-        "config_path": CONFIG_PATH,
-        "config_loaded": CONFIG_LOADED,
-        "warning_count": len(LOAD_WARNINGS),
-    }
 
 
 # ---------------------------------------------------------------------------

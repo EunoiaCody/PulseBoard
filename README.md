@@ -43,27 +43,34 @@
 
 ## 2. 安装与启动
 
-推荐方式：
+最省事的方式：
 
 ```bash
-cd /home/eunoia/Development/PulseBoard    # 项目根目录（仓库根）
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app:app --host 0.0.0.0 --port 8080
+chmod +x run.sh && ./run.sh
 ```
 
-然后浏览器访问 `http://<服务器IP>:8080`。
+脚本会自己建虚拟环境、装依赖、启动服务（已装好时自动跳过），然后浏览器访问 `http://<服务器IP>:8080`。
+
+```bash
+PORT=9000 ./run.sh                        # 换端口
+HOST=127.0.0.1 PORT=9000 ./run.sh         # 只监听本机
+MONITOR_CONFIG=/etc/monitor-webui.toml ./run.sh   # 用别的配置文件
+```
+
+> Debian / Ubuntu 如果报 `ensurepip is not available`，先装 venv 模块：`sudo apt install python3-venv`，
+> 然后再跑一次 `./run.sh`（脚本会自动重建那个建坏了的 `.venv`）。
+
+手动方式（效果一样）：
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m uvicorn app:app --host 0.0.0.0 --port 8080
+```
 
 其它等价方式：
 
 ```bash
-# 一键脚本（自动建虚拟环境 + 装依赖 + 启动）
-chmod +x run.sh && ./run.sh
-
-# 自定义端口
-PORT=9000 ./run.sh
-
 # 直接运行
 python3 app.py
 
@@ -641,11 +648,11 @@ services = ["systemctl", "show", "-p", "ActiveState", "nginx"]
 ## 8. 完整运行示例
 
 ```bash
-$ cd /home/eunoia/Development/PulseBoard
-$ python3 -m venv .venv
-$ source .venv/bin/activate
-$ pip install -r requirements.txt
-$ uvicorn app:app --host 0.0.0.0 --port 8080
+$ git clone https://github.com/EunoiaCody/PulseBoard && cd PulseBoard
+$ ./run.sh
+==> 创建虚拟环境 .venv
+==> 安装依赖
+==> 启动服务： http://0.0.0.0:8080
 INFO:     Started server process [12345]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
@@ -736,6 +743,9 @@ $ curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | head -30
 | 改完配置不生效 | 改 `config.toml` 后需 `systemctl restart monitor-webui`（用户级加 `--user`）；`uvicorn --reload` 模式则自动生效 |
 | 用 `MONITOR_CONFIG` 指向 `/tmp/xxx.toml` 但服务没读到 | service 文件里的 `PrivateTmp=yes` 会给服务一个私有 `/tmp`；把配置文件放到项目目录或 `/etc` 下 |
 | 启动日志出现“未识别的配置项” | `config.toml` 里项名拼错了（或写在了错误的段落里）；对照注释修正即可，其它配置照常生效 |
+| `./run.sh` 报 `.venv/bin/activate: No such file or directory` | 上次建虚拟环境失败（如未装 `python3-venv`）留下了一个空壳 `.venv`。现在的 `run.sh` 会检测并自动重建；旧版请手动 `rm -rf .venv` 后再跑 |
+| `./run.sh` 报 `ensurepip is not available` | 当前 Python 缺 venv 模块：`sudo apt install python3-venv`（Debian/Ubuntu）、`sudo dnf install python3`（Fedora） |
+| `tomli` 安装被跳过 | 正常：Python 3.11+ 用标准库 `tomllib`，`tomli` 只在 3.10 及更早需要（靠环境标记自动判断） |
 
 ---
 
