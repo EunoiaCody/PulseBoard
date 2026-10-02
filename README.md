@@ -25,6 +25,7 @@
 │   ├── __init__.py
 │   ├── system.py        # CPU / 内存 / Swap / 运行时间 / CPU 温度 / 磁盘（支持多个分区）
 │   ├── network.py       # 网络上下行速率（差分计算，支持多张网卡）
+│   ├── gpu.py           # GPU 占用率：NVIDIA/AMD/Intel(差分)/ARM devfreq 多源回退
 │   ├── power.py         # 功耗：GPU(nvidia-smi/hwmon/RAPL 三级回退) / CPU(RAPL) / 整机(psys、power_now)
 │   ├── websites.py      # 网站可用性检测（httpx 异步 + 超时）
 │   └── cli.py           # 预设 CLI 命令安全执行器（subprocess + timeout）
@@ -219,6 +220,7 @@ sudo systemctl edit monitor-webui               # 不改动原文件地覆盖配
 | `[cpu]` / `[cpu.temp]` | CPU 占用率开关；温度传感器优先级、sysfs 兜底、合理温度区间 |
 | `[memory]` / `[uptime]` / `[disk]` | 内存与 Swap、运行时间（含文本模板）、磁盘分区列表与开关 |
 | `[network]` | 网卡列表（多张）或汇总、是否含回环、最小采样间隔 |
+| `[gpu]` | GPU 占用率：多数据源自动回退（NVIDIA / AMD / Intel / ARM 核显或独显） |
 | `[power]` / `[power.gpu]` / `[power.cpu]` / `[power.total]` | GPU、CPU(RAPL)、整机三路独立功耗配置 |
 | `[websites]` + `[[websites.items]]` | 网站检测参数与网站列表 |
 | `[cli]` + `[cli.commands]` + `[cli.labels]` | CLI 白名单、超时、输出截断、并发数、工作目录、环境变量 |
@@ -332,13 +334,12 @@ cwd = ""                           # 留空=继承服务进程目录
 extra_env = {}                     # 如 { LANG = "C", LC_ALL = "C" }
 
 [cli.commands]
-# 非 NVIDIA 显卡：用 sysfs 看占用率（无需 root、无需额外软件）
-gpu = ["cat", "/sys/class/drm/card1/device/gpu_busy_percent"]
+# GPU 占用率已内置（见第 6.1 节），不再需要自己 cat sysfs；想额外看显存/频率可加一条：
+# gpu_mem = ["cat", "/sys/class/drm/card1/device/mem_info_vram_used"]
 disk = ["df", "-h", "/"]
 docker = ["docker", "ps", "--format", "{{.Names}}: {{.Status}}"]
 
 [cli.labels]
-gpu = "GPU 占用"
 disk = "磁盘"
 docker = "Docker"
 ```
@@ -434,7 +435,32 @@ services = ["systemctl", "show", "-p", "ActiveState", "nginx"]
 
 ---
 
-## 6. 功耗读取说明（不同硬件）
+## 6. GPU 占用率与功耗说明（不同硬件）
+
+### 6.1 GPU 占用率：自动识别，不需要按显卡品牌改配置
+
+按顺序尝试四个数据源，哪个能用就用哪个，都不可用时页面显示「不可用」并给出原因：
+
+| 顺序 | 显卡 | 数据源 | 说明 |
+| --- | --- | --- | --- |
+| 1 | NVIDIA | `nvidia-smi --query-gpu=utilization.gpu` | 多卡时取平均，来源会标注“N 张卡平均” |
+| 2 | AMD（amdgpu） | `/sys/class/drm/card*/device/gpu_busy_percent` | 文件内容就是百分比，免 root |
+| 3 | Intel（i915 / xe） | RC6 / GT idle 空闲计数器**差分**（`busy% = 100 − Δidle/Δwall`） | 内核**没有**直接给百分比的文件，只能两次采样求差 |
+| 4 | ARM / 嵌入式（Mali） | devfreq 的 `load`（如 `/sys/class/devfreq/ffe40000.gpu/load`，格式 `百分比@频率Hz`） | 需 governor 为 `simple_ondemand` 才有该文件 |
+
+几个实际会碰到的点：
+
+- **Mali / panfrost 读不出占用率**：Mali 是 3D-only 的，不注册 `card` 节点（只有 `renderD128`），
+  也没有 `gpu_busy_percent` 那种文件。能拿到占用率的唯一途径是 devfreq 的 `load`；
+  如果 `load` 不存在，先看 governor：`cat /sys/class/devfreq/*/governor`，
+  必要时用 root 改成 `echo simple_ondemand > /sys/class/devfreq/ffe40000.gpu/governor`。
+- **`fastfetch` 能显示 GPU 型号 ≠ 能读占用率**：它读的是设备树/DRM 的型号字符串，不是使用率。
+- **差分型数据源（Intel）第一次请求显示「不可用」**，约一个刷新周期后自动出现数值，
+  与网络速度、RAPL 功耗的行为一致。多个浏览器同时轮询时沿用上次结果，不会抖动。
+- **不想用某个数据源**：把它对应的 glob 写成空数组，例如 `busy_percent_globs = []`。
+- 以前用 `[cli.commands]` 里 `cat gpu_busy_percent` 的做法已被内置采集器取代，可以删掉那条命令。
+
+### 6.2 GPU 功耗
 
 功耗会被明确分成三项，**GPU 功耗不会被当作整机功耗**：
 
@@ -514,14 +540,18 @@ services = ["systemctl", "show", "-p", "ActiveState", "nginx"]
 │ 读数                          │ 网站          │   │ 读数           │
 │ CPU 占用            12.9 %   │ 官网 ● 正常   │   │ CPU 占用  12.9%│
 │ ════════════════════════════ │ ──────────── │   │ ══════════════ │
-│ 内存                 47.9 %  │ API  ● 异常   │   │ 网站           │
+│ GPU 占用            37.0 %   │ API  ● 异常   │   │ 网站           │
 │ ════════════════════════════ │ ──────────── │   │ 官网 ● 正常    │
-│ 运行时间      13小时 49分钟   │ 命令行信息    │   │ 命令行信息     │
-│                               │ + 磁盘 成功   │   │ + 磁盘 成功    │
+│ 内存                 47.9 %  │ 命令行信息    │   │ 命令行信息     │
+│ ════════════════════════════ │ + 磁盘 成功   │   │ + 磁盘 成功    │
+│ 运行时间      13小时 49分钟   │               │   │                │
 └──────────────────────────────┴──────────────┘   └───────────────┘
 ```
 
 - 内容顺序：读数 → 网站 → 命令行信息（DOM 顺序与移动端视觉顺序一致）
+- 读数区的顺序固定为：CPU 占用 / CPU 温度 / **GPU 占用** / 内存 / Swap / 磁盘… → 下载上传… / 功耗 / 运行时间
+  （GPU 占用与 CPU 放同一组，方便横向对比；读不到时该行显示「不可用」并注明原因，
+  例如“未检测到可读取占用率的 GPU”，见第 6.1 节）
 - 桌面端为**非对称双栏 1.35fr / 1fr**，读数占左栏；手机端单栏、行高 ≥52px
 - **标签左对齐，数值右对齐**：数字形成可纵向比较的一列
 - **磁盘与网卡的行数由 `config.toml` 决定**：配 N 个分区就多 N 行（标签带分区名/路径），
@@ -619,6 +649,8 @@ services = ["systemctl", "show", "-p", "ActiveState", "nginx"]
   "updated_at": "2026-10-01T20:00:00+08:00",
   "webservice": { "status": "ok", "status_text": "在线" },
   "cpu": { "usage": 32.4, "temperature": 52.0, "temperature_available": true, "temperature_reason": null },
+  "gpu": { "percent": 37.0, "available": true, "source": "amdgpu gpu_busy_percent", "error": null },
+  "gpu_enabled": true,
   "memory": {
     "used_gb": 5.2, "total_gb": 16.0, "percent": 32.5, "available_gb": 10.8,
     "swap_used_gb": 0.0, "swap_total_gb": 2.0, "swap_percent": 0.0
@@ -685,6 +717,13 @@ $ curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | head -30
         "temperature_available": true,
         "temperature_reason": null
     },
+    "gpu": {
+        "percent": 37.0,
+        "available": true,
+        "source": "amdgpu gpu_busy_percent",
+        "error": null
+    },
+    "gpu_enabled": true,
     "memory": {
         "used_gb": 5.21,
         "total_gb": 31.2,
@@ -752,6 +791,7 @@ $ curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | head -30
 | 启动日志出现“未识别的配置项” | `config.toml` 里项名拼错了（或写在了错误的段落里）；对照注释修正即可，其它配置照常生效 |
 | `./run.sh` 报 `.venv/bin/activate: No such file or directory` | 上次建虚拟环境失败（如未装 `python3-venv`）留下了一个空壳 `.venv`。现在的 `run.sh` 会检测并自动重建；旧版请手动 `rm -rf .venv` 后再跑 |
 | `./run.sh` 报 `ensurepip is not available` | 当前 Python 缺 venv 模块：`sudo apt install python3-venv`（Debian/Ubuntu）、`sudo dnf install python3`（Fedora） |
+| ARM 盒子上 GPU 占用显示「不可用」 | 见 6.1：Mali 只能走 devfreq 的 `load`，且需要 `simple_ondemand` governor；ARM SoC 也没有 RAPL/hwmon，所以 GPU 功耗同样必然不可用，属于硬件事实 |
 | 改了 `server.port` 却还在 8080 上监听 | 旧版 `run.sh`/service 文件会传 `--host/--port` 把配置覆盖掉（已修复）。若你用 systemd，请把 `ExecStart` 改成 `.venv/bin/python app.py`；或启动时看看日志里的「监听 x.x.x.x:端口」那一行 |
 | 启动报 `address already in use` | 该端口已被占用。换一个 `server.port`，或找出占用进程：`ss -ltnp | grep :8080` |
 | `tomli` 安装被跳过 | 正常：Python 3.11+ 用标准库 `tomllib`，`tomli` 只在 3.10 及更早需要（靠环境标记自动判断） |

@@ -89,7 +89,22 @@ _DEFAULTS: dict[str, Any] = {
     "network.items": [],
     "network.include_loopback": True,
     "network.min_interval_s": 0.05,
-    # 10) 功耗
+    # 10) GPU 占用率（多数据源自动回退：NVIDIA / amdgpu / Intel 差分 / devfreq）
+    "gpu.enabled": True,
+    "gpu.nvidia_smi_query": "utilization.gpu",
+    "gpu.busy_percent_globs": ["/sys/class/drm/card*/device/gpu_busy_percent"],
+    "gpu.idle_residency_globs": [
+        "/sys/class/drm/card*/gt/gt0/rc6_residency_ms",
+        "/sys/class/drm/card*/power/rc6_residency_ms",
+        "/sys/class/drm/card*/device/tile*/gt*/gtidle/idle_residency_ms",
+        "/sys/class/drm/card*/device/gt*/gtidle/idle_residency_ms",
+    ],
+    "gpu.devfreq_load_globs": ["/sys/class/devfreq/*/load"],
+    "gpu.devfreq_keywords": ["gpu", "mali"],
+    "gpu.min_interval_s": 0.5,
+    "gpu.min_percent": 0.0,
+    "gpu.max_percent": 100.0,
+    # 11) 功耗
     "power.enabled": True,
     "power.gpu.enabled": True,
     "power.gpu.nvidia_smi_path": "nvidia-smi",
@@ -145,6 +160,15 @@ _ALIASES: dict[str, str] = {
     "frontend.bar_warn_percent": "BAR_WARN_PERCENT",
     "frontend.bar_crit_percent": "BAR_CRIT_PERCENT",
     "frontend.speed_mb_threshold_bps": "SPEED_MB_THRESHOLD_BPS",
+    # GPU 占用率（业务代码用 GPU_ 前缀，注意与下面功耗的 GPU_POWER_ 区分）
+    "gpu.nvidia_smi_query": "GPU_NVIDIA_SMI_QUERY",
+    "gpu.busy_percent_globs": "GPU_BUSY_PERCENT_GLOBS",
+    "gpu.idle_residency_globs": "GPU_IDLE_RESIDENCY_GLOBS",
+    "gpu.devfreq_load_globs": "GPU_DEVFREQ_LOAD_GLOBS",
+    "gpu.devfreq_keywords": "GPU_DEVFREQ_KEYWORDS",
+    "gpu.min_interval_s": "GPU_MIN_INTERVAL_S",
+    "gpu.min_percent": "GPU_MIN_PERCENT",
+    "gpu.max_percent": "GPU_MAX_PERCENT",
     # 功耗（业务代码里用的是 GPU_POWER_/CPU_POWER_/RAPL_ 前缀）
     "power.gpu.enabled": "GPU_POWER_ENABLED",
     "power.gpu.nvidia_smi_path": "NVIDIA_SMI_PATH",

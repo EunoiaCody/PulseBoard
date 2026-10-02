@@ -295,6 +295,14 @@
     return specs;
   }
 
+  function renderGpu(data) {
+    var gpu = data.gpu || {};
+    setFigure($("gpu-usage"), gpu.percent, 1);
+    setGauge($("gpu-gauge"), gpu.percent);
+    // 有值时说明数据来源（诚实标注），没值时说明原因
+    setNote($("gpu-note"), gpu.source ? String(gpu.source) : gpu.error ? String(gpu.error) : "");
+  }
+
   function renderDisksAndNetworks(data) {
     syncReadoutRows(diskSpecs(data).concat(networkSpecs(data)));
   }
@@ -506,6 +514,7 @@
     hasData = true;
     setConnection("up", "在线");
     renderCpu(data);
+    renderGpu(data);
     renderMemory(data);
     renderDisksAndNetworks(data);
     renderPower(data);

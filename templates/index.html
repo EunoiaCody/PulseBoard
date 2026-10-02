@@ -36,12 +36,22 @@
             </dd>
           </div>
 
-          <div class="readout" data-break>
+          <div class="readout">
             <dt class="readout__label">CPU 温度</dt>
             <dd class="readout__value">
               <span class="readout__figure" id="cpu-temp" data-na="true">—</span>
               <span class="readout__unit">°C</span>
               <span class="readout__note" id="cpu-temp-note" hidden>—</span>
+            </dd>
+          </div>
+
+          <div class="readout" data-break>
+            <dt class="readout__label">GPU 占用</dt>
+            <dd class="readout__value">
+              <span class="readout__figure" id="gpu-usage" data-na="true">—</span>
+              <span class="readout__unit">%</span>
+              <span class="readout__note" id="gpu-note" hidden>—</span>
+              <span class="gauge__fill" id="gpu-gauge" aria-hidden="true"></span>
             </dd>
           </div>
 

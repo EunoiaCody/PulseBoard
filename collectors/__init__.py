@@ -4,6 +4,6 @@
 保证任何单个指标失败都不会让 /api/status 整体失败。
 """
 
-from . import cli, network, power, system, websites
+from . import cli, gpu, network, power, system, websites
 
-__all__ = ["cli", "network", "power", "system", "websites"]
+__all__ = ["cli", "gpu", "network", "power", "system", "websites"]

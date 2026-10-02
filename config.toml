@@ -161,7 +161,48 @@ min_interval_s = 0.05
 
 
 # -----------------------------------------------------------------------------
-# 10. 功耗（GPU / CPU / 整机，三者独立，读取失败只影响自己那一项）
+# 10. GPU 占用率（自动识别显卡品牌，无需按机器改配置）
+# -----------------------------------------------------------------------------
+[gpu]
+# 是否采集 GPU 占用率。读不到时页面显示“不可用”，不影响其它指标
+enabled = true
+
+# 数据源按顺序自动尝试，存在哪个就用哪个：
+#   1. NVIDIA            nvidia-smi --query-gpu=utilization.gpu（多卡取平均）
+#                        路径与超时沿用 [power.gpu] 的 nvidia_smi_path / nvidia_smi_timeout
+#   2. AMD（amdgpu）      /sys/class/drm/card*/device/gpu_busy_percent（本身就是百分比）
+#   3. Intel（i915/xe）   RC6 / GT idle 空闲计数器差分：busy% = 100 - 空闲占比
+#                        内核没有直接给百分比的文件，只能靠两次采样求差
+#   4. ARM / 嵌入式        devfreq 的 load 文件（Mali 等），格式 “百分比@频率Hz”
+# 想跳过某个数据源，把对应的 glob 写成空数组 [] 即可
+nvidia_smi_query = "utilization.gpu"
+
+# AMD：amdgpu 驱动导出的 busy 文件
+busy_percent_globs = ["/sys/class/drm/card*/device/gpu_busy_percent"]
+
+# Intel：空闲常驻计数器（i915 叫 rc6_residency_ms，xe 叫 gtidle/idle_residency_ms）
+idle_residency_globs = [
+  "/sys/class/drm/card*/gt/gt0/rc6_residency_ms",
+  "/sys/class/drm/card*/power/rc6_residency_ms",
+  "/sys/class/drm/card*/device/tile*/gt*/gtidle/idle_residency_ms",
+  "/sys/class/drm/card*/device/gt*/gtidle/idle_residency_ms",
+]
+
+# ARM / 嵌入式：devfreq 的 load（需要 governor 为 simple_ondemand 才有这个文件）
+# 用 `ls /sys/class/devfreq/` 看设备名，Amlogic 通常是 ffe40000.gpu
+devfreq_load_globs = ["/sys/class/devfreq/*/load"]
+# 从 devfreq 设备名里筛出 GPU，避免误取 CPU / DDR 的负载
+devfreq_keywords = ["gpu", "mali"]
+
+# 差分型数据源的最小采样间隔（秒）：间隔太短时沿用上次结果，避免数值抖动
+min_interval_s = 0.5
+# 合理区间（百分比），越界的读数会被当成坏数据丢弃
+min_percent = 0.0
+max_percent = 100.0
+
+
+# -----------------------------------------------------------------------------
+# 11. 功耗（GPU / CPU / 整机，三者独立，读取失败只影响自己那一项）
 # -----------------------------------------------------------------------------
 [power]
 # 功耗采集总开关。false 时所有功耗项显示 N/A
@@ -217,7 +258,7 @@ power_supply_glob = "/sys/class/power_supply/*/power_now"
 
 
 # -----------------------------------------------------------------------------
-# 11. 网站状态检测
+# 12. 网站状态检测
 # -----------------------------------------------------------------------------
 [websites]
 # 是否检测网站状态。false 时页面显示“网站检测已关闭”
@@ -254,7 +295,7 @@ url = "https://example.com/health"
 
 
 # -----------------------------------------------------------------------------
-# 12. CLI 信息（安全白名单：网页端无法传入命令）
+# 13. CLI 信息（安全白名单：网页端无法传入命令）
 # -----------------------------------------------------------------------------
 # 安全约束（由 collectors/cli.py 保证）：
 #   * 只执行本文件里写好的命令；
@@ -280,14 +321,9 @@ extra_env = {}
 
 # 命令白名单：key = 展示标识，value = 参数列表（必须是数组，不能写成一整个字符串）
 [cli.commands]
-# AMD/Intel 显卡的占用率：sysfs 直接可读，无需 root、无需第三方工具
-# 路径里的 card0/card1 因机器而异，先用这条命令确认：
-#   ls /sys/class/drm/card*/device/gpu_busy_percent
-# 输出是一个百分比整数（如 7 表示 7%）。想知道路径的话可以改用：
-#   gpu_path = ["ls", "/sys/class/drm/card*/device/"]
-gpu = ["cat", "/sys/class/drm/card1/device/gpu_busy_percent"]
-# 有 NVIDIA 卡时，把上面这行换成（输出含温度/功耗/利用率/显存）：
-# gpu = ["nvidia-smi", "--query-gpu=name,temperature.gpu,power.draw,utilization.gpu,memory.used,memory.total", "--format=csv,noheader"]
+# GPU 占用率现在由内置采集器负责（见第 10 节），不再需要用 CLI cat sysfs；
+# 想额外看显存占用、频率之类的原始值，可以按需加回一条，例如：
+# gpu_mem = ["cat", "/sys/class/drm/card1/device/mem_info_vram_used"]
 disk = ["df", "-h", "/"]
 docker = ["docker", "ps", "--format", "{{.Names}}: {{.Status}}"]
 # 按需取消注释：
@@ -300,7 +336,6 @@ docker = ["docker", "ps", "--format", "{{.Names}}: {{.Status}}"]
 
 # 卡片标题：key 与上面的命令 key 对应；没配的 key 会直接显示 key 本身
 [cli.labels]
-gpu = "GPU 占用"
 disk = "磁盘"
 docker = "Docker"
 services = "服务"

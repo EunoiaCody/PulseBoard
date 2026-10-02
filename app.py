@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 
 import config
 from collectors import cli as cli_collector
+from collectors import gpu as gpu_collector
 from collectors import network as network_collector
 from collectors import power as power_collector
 from collectors import system as system_collector
@@ -98,6 +99,7 @@ async def api_status() -> dict[str, Any]:
     (
         cpu_usage,
         cpu_temp,
+        gpu_usage,
         memory,
         uptime,
         disks,
@@ -108,6 +110,7 @@ async def api_status() -> dict[str, Any]:
     ) = await asyncio.gather(
         asyncio.to_thread(system_collector.get_cpu_usage),
         asyncio.to_thread(system_collector.get_cpu_temperature),
+        asyncio.to_thread(gpu_collector.get_gpu_usage),
         asyncio.to_thread(system_collector.get_memory),
         asyncio.to_thread(system_collector.get_uptime),
         asyncio.to_thread(system_collector.get_disks),
@@ -123,6 +126,7 @@ async def api_status() -> dict[str, Any]:
 
     cpu_usage = _ok(cpu_usage, None)
     cpu_temp = _ok(cpu_temp, {"value": None, "available": False, "reason": "采集失败"})
+    gpu_usage = _ok(gpu_usage, {"percent": None, "available": False, "source": None, "error": "采集失败"})
     memory = _ok(memory, {})
     uptime = _ok(uptime, {"seconds": None, "text": None})
     disks = _ok(disks, [])
@@ -145,6 +149,13 @@ async def api_status() -> dict[str, Any]:
             "temperature_available": bool(cpu_temp.get("available")),
             "temperature_reason": cpu_temp.get("reason"),
         },
+        "gpu": {
+            "percent": gpu_usage.get("percent"),
+            "available": bool(gpu_usage.get("available")),
+            "source": gpu_usage.get("source"),
+            "error": gpu_usage.get("error"),
+        },
+        "gpu_enabled": bool(getattr(config, "GPU_ENABLED", True)),
         "memory": {
             "used_gb": memory.get("used_gb"),
             "total_gb": memory.get("total_gb"),
