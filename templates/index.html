@@ -23,6 +23,8 @@
           <path class="pulse__spark" d="M10 32 h12 l6 -13 l8 26 l6 -13 h12"/>
         </svg>
         <span class="live__state" id="service-state" role="status" aria-live="polite">正在连接</span>
+        <!-- 最近一次成功更新的时刻：既是「页面还活着」的证据，也诚实标出数据的年纪 -->
+        <time class="live__time" id="live-time" hidden><span class="sr-only">更新于 </span><span id="live-time-value"></span></time>
       </p>
     </header>
 
@@ -101,30 +103,33 @@
         </dl>
       </section>
 
-      <!-- 网站：名称列内联错误原因，状态同时用颜色与文字表达 -->
-      <section class="section" aria-labelledby="sites-heading">
-        <h2 class="section__title" id="sites-heading">网站</h2>
-        <table class="sites" id="sites-table" hidden>
-          <caption class="sr-only">各网站当前可用性、HTTP 状态码与响应延迟</caption>
-          <thead>
-            <tr>
-              <th scope="col">名称</th>
-              <th scope="col">状态</th>
-              <th scope="col">HTTP</th>
-              <th scope="col">延迟</th>
-            </tr>
-          </thead>
-          <tbody id="sites-body"></tbody>
-        </table>
-        <p class="empty" id="sites-empty" data-loading="true">正在读取数据…</p>
-      </section>
+      <!-- 次要栏：网站 + 命令行信息归于同一列，避免被左侧读数栏拉出中段空档 -->
+      <div class="main__aside">
+        <!-- 网站：名称列内联错误原因，状态同时用颜色与文字表达 -->
+        <section class="section" aria-labelledby="sites-heading">
+          <h2 class="section__title" id="sites-heading">网站</h2>
+          <table class="sites" id="sites-table" hidden>
+            <caption class="sr-only">各网站当前可用性、HTTP 状态码与响应延迟</caption>
+            <thead>
+              <tr>
+                <th scope="col">名称</th>
+                <th scope="col">状态</th>
+                <th scope="col">HTTP</th>
+                <th scope="col">延迟</th>
+              </tr>
+            </thead>
+            <tbody id="sites-body"></tbody>
+          </table>
+          <p class="empty" id="sites-empty" data-loading="true">正在读取数据…</p>
+        </section>
 
-      <!-- 命令行信息：原生折叠，展开状态在刷新之间保留 -->
-      <section class="section" aria-labelledby="cli-heading">
-        <h2 class="section__title" id="cli-heading">命令行信息</h2>
-        <div id="cli-list"></div>
-        <p class="empty" id="cli-empty" data-loading="true">正在读取数据…</p>
-      </section>
+        <!-- 命令行信息：原生折叠，展开状态在刷新之间保留 -->
+        <section class="section" aria-labelledby="cli-heading">
+          <h2 class="section__title" id="cli-heading">命令行信息</h2>
+          <div id="cli-list"></div>
+          <p class="empty" id="cli-empty" data-loading="true">正在读取数据…</p>
+        </section>
+      </div>
     </main>
   </div>
 

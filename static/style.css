@@ -55,6 +55,7 @@
   /* ---- 动效令牌：新增动效一律走这三个时长与两条缓动，方便统一调慢/关闭 ---- */
   --dur-fast: 160ms;
   --dur-base: 320ms;
+  --dur-reveal: 400ms;   /* 折叠面板展开/收起：要能看清，不能一闪而过 */
   --dur-slow: 620ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);      /* 入场：快出慢停 */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);   /* 数值/颜色变化 */
@@ -248,6 +249,9 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 .live[data-state="up"] .live__state { color: var(--foreground); }
 .live[data-state="down"] .live__state { color: var(--destructive-text); }
 
+/* 最近一次更新的时刻：等宽数字，不抢状态词的层级 */
+.live__time { font-variant-numeric: tabular-nums; }
+
 /* 心跳波形：与 favicon 同源的脉冲线。
    .pulse__line 常驻底线（随连接状态变色），.pulse__spark 是每次轮询成功的 lavender 高亮段 */
 .pulse {
@@ -331,9 +335,17 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 }
 
 /* 三个分区的线依次画出，形成从上到下的绘图节奏 */
-.main > .section:nth-child(1) .section__title::after { animation-delay: 120ms; }
-.main > .section:nth-child(2) .section__title::after { animation-delay: 200ms; }
-.main > .section:nth-child(3) .section__title::after { animation-delay: 280ms; }
+.main > .section--vitals .section__title::after { animation-delay: 120ms; }
+.main__aside > .section:nth-child(1) .section__title::after { animation-delay: 200ms; }
+.main__aside > .section:nth-child(2) .section__title::after { animation-delay: 280ms; }
+
+/* 次要栏：网站 + 命令行信息自己成列，间距与主网格一致，
+   不再被左侧的读数长栏拉扯出中段空档 */
+.main__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
 
 /* -----------------------------------------------------------------------------
    读数：定义列表 + 右对齐数值列 + 阈值进度
@@ -558,8 +570,16 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 }
 
 .cli__mark::before { inset: 4px 0 auto; height: 1px; }
-.cli__mark::after { inset: 0 auto 0 4px; width: 1px; transition: transform 120ms ease; }
+.cli__mark::after { inset: 0 auto 0 4px; width: 1px; transition: transform var(--dur-fast) var(--ease-standard); }
 .cli[open] .cli__mark::after { transform: scaleY(0); }
+
+/* 可点的提示：悬停/聚焦时「+" 从灰提到正文色（不铺背景，保持记录纸的干净） */
+.cli__mark::before,
+.cli__mark::after { transition: background-color var(--dur-fast) var(--ease-standard); }
+.cli summary:hover .cli__mark::before,
+.cli summary:hover .cli__mark::after,
+.cli summary:focus-visible .cli__mark::before,
+.cli summary:focus-visible .cli__mark::after { background: var(--foreground); }
 
 .cli__name { font-family: var(--font-voice); font-size: 15px; }
 
@@ -599,9 +619,20 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   overflow: auto;
 }
 
-/* 原生 details 无法 transition，开合时用一次性 keyframe 补一个轻揭示 */
-.cli[open] .cli__output {
-  animation: rise var(--dur-fast) var(--ease-out);
+/* 原生 details 不能过渡高度，所以正文包在 .cli__body 里由 JS 测高开合（见 app.js）。
+   无 JS 时这一层退化为常显，原生 details 仍可正常折叠 */
+.cli__body {
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    height var(--dur-reveal) var(--ease-out),
+    opacity var(--dur-base) var(--ease-out);
+}
+
+.cli[open] .cli__body {
+  height: auto;
+  opacity: 1;
 }
 
 /* -----------------------------------------------------------------------------
@@ -630,7 +661,7 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 .main[data-stale="true"] .cli__output { color: var(--muted-foreground); }
 
 /* -----------------------------------------------------------------------------
-   桌面端：非对称双栏，读数占左栏并跨两行
+   桌面端：非对称双栏，读数占左栏
    -------------------------------------------------------------------------- */
 @media (min-width: 720px) {
   .sheet { padding: 40px 36px 96px; }
@@ -643,7 +674,7 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
     margin-top: 40px;
   }
 
-  .section--vitals { grid-row: span 2; }
+  .main__aside { gap: 48px; }
 
   .readout { padding: 15px 0; }
   .sites__url { display: block; }

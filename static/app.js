@@ -40,6 +40,10 @@
     return value.toFixed(digits === undefined ? 1 : digits);
   }
 
+  function pad2(value) {
+    return value < 10 ? "0" + value : String(value);
+  }
+
   /** 只在内容变化时写入，避免无意义的 DOM 变更 */
   function setText(el, text) {
     if (!el) return;
@@ -356,6 +360,25 @@
     setTextValue($("uptime-text"), uptime.text);
   }
 
+  /** 报头时间：显示最近一次成功拿到数据的时刻；拿不到就隐藏整个元素 */
+  function renderUpdatedAt(data) {
+    var el = $("live-time");
+    var value = $("live-time-value");
+    if (!el || !value) return;
+    var iso = data && data.updated_at ? String(data.updated_at) : "";
+    var date = iso ? new Date(iso) : null;
+    if (!date || isNaN(date.getTime())) {
+      el.hidden = true;
+      return;
+    }
+    el.dateTime = iso;
+    setText(
+      value,
+      pad2(date.getHours()) + ":" + pad2(date.getMinutes()) + ":" + pad2(date.getSeconds())
+    );
+    el.hidden = false;
+  }
+
   /* --------------------------------- 网站 --------------------------------- */
 
   function sitesSignature(sites) {
@@ -463,6 +486,69 @@
 
   /* -------------------------------- 命令行 -------------------------------- */
 
+  /* ----------------------------- CLI 折叠动画 -----------------------------
+     原生 <details> 只能瞬时开合，这里用测高的 height + opacity 过渡做出
+     对称的展开/收起；prefers-reduced-motion 时直接交回原生行为。 */
+
+  function animateDisclosure(details, summary, body) {
+    var busy = false;
+
+    /** 等高度过渡结束（带兜底超时），再执行收尾 */
+    function whenSettled(callback) {
+      var done = false;
+      function once() {
+        if (done) return;
+        done = true;
+        body.removeEventListener("transitionend", onEnd);
+        callback();
+      }
+      function onEnd(event) {
+        if (event.target === body && event.propertyName === "height") once();
+      }
+      body.addEventListener("transitionend", onEnd);
+      setTimeout(once, 700);
+    }
+
+    function open() {
+      details.setAttribute("open", "");
+      body.style.height = "0px";
+      body.style.opacity = "0";
+      var target = body.scrollHeight;   // 此刻内容已参与布局，量得到真实高度
+      void body.offsetHeight;           // 强制回流，让过渡从 0 开始
+      body.style.height = target + "px";
+      body.style.opacity = "1";
+      whenSettled(function () {
+        body.style.height = "";          // 回到 auto，内容变化时不会被写死
+        body.style.opacity = "";
+        busy = false;
+      });
+    }
+
+    function close() {
+      var target = body.scrollHeight;
+      body.style.height = target + "px";
+      body.style.opacity = "1";
+      void body.offsetHeight;
+      body.style.height = "0px";
+      body.style.opacity = "0";
+      whenSettled(function () {
+        details.removeAttribute("open");
+        body.style.height = "";
+        body.style.opacity = "";
+        busy = false;
+      });
+    }
+
+    summary.addEventListener("click", function (event) {
+      if (reducedMotion()) return;      // 用原生瞬时行为
+      event.preventDefault();
+      if (busy) return;
+      busy = true;
+      if (details.hasAttribute("open")) close();
+      else open();
+    });
+  }
+
   function buildCli(cli) {
     var list = $("cli-list");
     if (!list) return;
@@ -488,11 +574,15 @@
       state.className = "cli__state";
       summary.append(mark, name, state);
 
+      var body = document.createElement("div");
+      body.className = "cli__body";
       var output = document.createElement("pre");
       output.className = "cli__output";
+      body.appendChild(output);
 
-      details.append(summary, output);
+      details.append(summary, body);
       list.appendChild(details);
+      animateDisclosure(details, summary, body);
 
       cliRefs[key] = { state: state, output: output, ok: null };
     });
@@ -557,6 +647,7 @@
   function render(data) {
     hasData = true;
     setConnection("up", "在线");
+    renderUpdatedAt(data);
     pulseTick();
     renderCpu(data);
     renderGpu(data);
