@@ -82,6 +82,7 @@ async def api_config() -> dict[str, Any]:
     """前端需要的展示类配置（来源：config.py 第 1、2、7 节）。"""
     return {
         "page_title": getattr(config, "PAGE_TITLE", "服务器实时状态"),
+        "favicon": config.resolve_favicon(),
         "refresh_interval_ms": int(getattr(config, "REFRESH_INTERVAL_MS", 3000)),
         "fetch_timeout_ms": int(getattr(config, "FETCH_TIMEOUT_MS", 8000)),
         "bar_warn_percent": float(getattr(config, "BAR_WARN_PERCENT", 75.0)),

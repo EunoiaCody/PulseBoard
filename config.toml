@@ -51,6 +51,16 @@ log_level = "INFO"
 # 浏览器标签页标题，同时也是页面顶部大标题
 title = "服务器实时状态"
 
+# 网站图标（浏览器标签页上的小图标）。留空就用项目自带的那一个：
+#   static/favicon.svg —— 脉冲波形图标，会跟随系统亮/暗主题变色
+#
+# 想换成自己的，三种写法（出问题会自动回退到默认图标并在启动日志里提示）：
+#   favicon = "my-icon.png"                       # 放在 static/ 目录下的文件名
+#   favicon = "static/my-icon.png"                # 同样意思，写成带目录也行
+#   favicon = "https://example.com/icon.png"      # 完整 URL（外链图标）
+# 支持格式：svg / png / ico / jpg / jpeg / webp / gif
+favicon = ""
+
 
 # -----------------------------------------------------------------------------
 # 3. 前端刷新与显示

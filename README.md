@@ -33,6 +33,7 @@
 ├── templates/
 │   └── index.html       # 单页页面结构
 ├── static/
+│   ├── favicon.svg      # 默认网站图标（脉冲波形，随系统亮/暗主题变色）
 │   ├── style.css        # 样式与 Catppuccin Latte / Mocha 令牌
 │   └── app.js           # 轮询与渲染逻辑
 └── deploy/              # systemd 部署示例
@@ -224,6 +225,29 @@ url = "https://media.example.com"
 > 用 `MONITOR_CONFIG=/path/to/xxx.toml` 时**不再叠加** `config.local.toml`（那个文件就是你的全部配置）。
 > 想把个人配置文件放到别处：`MONITOR_CONFIG=/etc/monitor-webui.toml ./run.sh`。
 
+### 3.2 网站图标（favicon）
+
+项目自带一个默认图标 `static/favicon.svg`（脉冲波形 + 圆角方块，用页面主色），
+且**会跟随系统亮/暗主题自动变色**（亮色 Latte 蓝底浅色波形，暗色 Mocha 反之），
+不需要配任何东西就能显示。
+
+想换成自己的，在 `[page] favicon` 里三选一：
+
+```toml
+[page]
+favicon = ""                              # ① 留空：用内置默认图标
+favicon = "my-icon.png"                   # ② 把文件放进 static/ 目录，写文件名
+favicon = "https://example.com/icon.png"  # ③ 完整 URL（外链图标）
+```
+
+说明：
+
+- 支持 `svg` / `png` / `ico` / `jpg` / `jpeg` / `webp` / `gif`，也会给浏览器带上正确的 MIME 类型；
+- 图标文件**只能放在 `static/` 目录里**（写 `static/xxx.png` 也行），写 `../` 之类的路径会被拒绝；
+- 文件不存在、路径不合法时**不会报错**，只会在启动日志里提示一句并回退到默认图标：
+  `配置提示：page.favicon 指向的图标不存在：nope.png；已回退到默认图标 /static/favicon.svg`
+- 浏览器对图标缓存很顽固，换完图标看不到时先强制刷新（Ctrl+Shift+R），或换个标签页打开。
+
 ### 为什么用 TOML 而不是 JSON
 
 | | JSON | TOML |
@@ -258,7 +282,7 @@ url = "https://media.example.com"
 | 段落 | 内容 |
 | --- | --- |
 | `[server]` | 监听地址/端口、热重载、日志级别 |
-| `[page]` | 浏览器标题（同时作为页面大标题） |
+| `[page]` | 浏览器标题（同时作为页面大标题）、网站图标（favicon） |
 | `[frontend]` | 刷新间隔、请求超时、进度条告警阈值、速度单位阈值 |
 | `[cpu]` / `[cpu.temp]` | CPU 占用率开关；温度传感器优先级、sysfs 兜底、合理温度区间 |
 | `[memory]` / `[uptime]` / `[disk]` | 内存与 Swap、运行时间（含文本模板）、磁盘分区列表与开关 |
@@ -279,6 +303,7 @@ log_level = "INFO"    # DEBUG/INFO/WARNING/ERROR
 
 [page]
 title = "服务器实时状态"
+favicon = ""          # 留空=内置图标；也可写 static/ 下的文件名或完整 URL（见 3.2）
 
 [frontend]
 refresh_interval_ms = 3000         # 轮询间隔（毫秒）

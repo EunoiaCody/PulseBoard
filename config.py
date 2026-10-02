@@ -65,6 +65,7 @@ _DEFAULTS: dict[str, Any] = {
     "server.log_level": "INFO",
     # 2) 页面
     "page.title": "服务器实时状态",
+    "page.favicon": "",
     # 3) 前端
     "frontend.refresh_interval_ms": 3000,
     "frontend.fetch_timeout_ms": 8000,
@@ -163,6 +164,8 @@ _DEFAULTS: dict[str, Any] = {
 _ALIASES: dict[str, str] = {
     # 服务 / 页面 / 前端
     "server.log_level": "LOG_LEVEL",
+    "page.title": "PAGE_TITLE",
+    "page.favicon": "PAGE_FAVICON",
     "frontend.refresh_interval_ms": "REFRESH_INTERVAL_MS",
     "frontend.fetch_timeout_ms": "FETCH_TIMEOUT_MS",
     "frontend.bar_warn_percent": "BAR_WARN_PERCENT",
@@ -423,7 +426,72 @@ def validate() -> list[str]:
     if CPU_TEMP_MIN_C >= CPU_TEMP_MAX_C:
         warnings.append("cpu.temp.min_c 必须小于 cpu.temp.max_c")
 
+    _, favicon_error = _resolve_favicon()
+    if favicon_error:
+        warnings.append(favicon_error)
+
     return warnings
+
+
+# ---------------------------------------------------------------------------
+# 5.5 网站图标（favicon）解析
+#      [page] favicon 支持三种写法，解析失败一律回退到内置默认图标
+# ---------------------------------------------------------------------------
+_FAVICON_MEDIA_TYPES: dict[str, str] = {
+    "svg": "image/svg+xml",
+    "png": "image/png",
+    "ico": "image/x-icon",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "webp": "image/webp",
+    "gif": "image/gif",
+}
+
+#: 内置默认图标（随仓库一起分发，无需配置就能显示）
+DEFAULT_FAVICON = "/static/favicon.svg"
+
+
+def _resolve_favicon() -> tuple[dict[str, str], str | None]:
+    """解析 [page] favicon，返回 ({href, media_type}, 错误提示)。
+
+    * 留空           → 内置默认 static/favicon.svg
+    * http(s)/data:  → 原样使用（外链图标）
+    * 其它           → 当作 static/ 目录下的文件名（也接受写成 static/xxx）
+    """
+    default = {"href": DEFAULT_FAVICON, "media_type": _FAVICON_MEDIA_TYPES["svg"]}
+    value = (PAGE_FAVICON or "").strip()
+    if not value:
+        return default, None
+
+    if value.startswith(("http://", "https://", "data:")):
+        if value.startswith("data:"):
+            # data URI 的 MIME 写在自己身上：data:image/png;base64,...
+            media = value[5:].split(";", 1)[0].split(",", 1)[0].strip()
+            return {"href": value, "media_type": media if "/" in media else ""}, None
+        ext = value.split("?")[0].split("#")[0].rsplit(".", 1)[-1].lower()
+        return {"href": value, "media_type": _FAVICON_MEDIA_TYPES.get(ext, "")}, None
+
+    static_dir = (BASE_DIR / "static").resolve()
+    name = value[len("static/"):] if value.startswith("static/") else value
+    try:
+        target = (static_dir / name).resolve(strict=True)
+    except OSError:
+        return default, (
+            f"page.favicon 指向的图标不存在：{value}；已回退到默认图标 {DEFAULT_FAVICON}"
+            "（自定义图标请放进 static/ 目录，或直接写完整 URL）"
+        )
+    # 防止 ../ 跳出 static 目录
+    if not target.is_file() or target.parent != static_dir:
+        return default, f"page.favicon 只能指向 static/ 目录内的文件：{value}；已回退到默认图标"
+
+    ext = target.suffix.lstrip(".").lower()
+    return {"href": f"/static/{target.name}", "media_type": _FAVICON_MEDIA_TYPES.get(ext, "")}, None
+
+
+def resolve_favicon() -> dict[str, str]:
+    """页面需要的 favicon 描述：{href, media_type}；任何问题都回退到内置默认图标。"""
+    result, _ = _resolve_favicon()
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -574,6 +574,21 @@
       document.title = String(cfg.page_title);
       setText($("page-title"), cfg.page_title);
     }
+
+    // favicon：默认是静态 <link> 指向 /static/favicon.svg；
+    // 只有 /api/config 显式给了不同的地址才换（换成 URL 或项目里的文件）
+    const faviconHref = (cfg.favicon && typeof cfg.favicon.href === "string") ? cfg.favicon.href : "";
+    if (faviconHref && faviconHref !== "/static/favicon.svg") {
+      let link = document.querySelector('link[rel="icon"]');
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      const media = (cfg.favicon && typeof cfg.favicon.media_type === "string") ? cfg.favicon.media_type : "";
+      if (media) link.type = media;
+      link.href = faviconHref;
+    }
   }
 
   function start() {
