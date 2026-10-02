@@ -49,6 +49,8 @@
 ### 2.1 一键启动
 
 ```bash
+git clone https://github.com/EunoiaCody/PulseBoard
+cd PulseBoard
 chmod +x run.sh && ./run.sh
 ```
 
