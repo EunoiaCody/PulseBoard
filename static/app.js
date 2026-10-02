@@ -101,13 +101,42 @@
     return { value: (bps / 1024).toFixed(1), unit: "KB/s" };
   }
 
+  /** 是否开启了「减少动态效果」。每次都重新读取，跟随系统设置变化 */
+  function reducedMotion() {
+    return (
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  }
+
+  /**
+   * 重新触发一次性动画：移除类 → 强制一次回流 → 加回类。
+   * 只在状态变化等罕见事件时调用，不会造成持续的布局开销。
+   */
+  function restartAnimation(el, cls) {
+    if (!el || reducedMotion()) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+  }
+
+  /** 轮询成功：心跳波形扫过一次，顺便证明数据刚刚更新 */
+  function pulseTick() {
+    restartAnimation($("service-live"), "is-ticking");
+  }
+
+  /** 状态真的变了：在对应状态元素上播一次扩散环（首屏不算变化，不播） */
+  function ping(el) {
+    restartAnimation(el, "is-pinged");
+  }
+
   /** 连接状态：只在状态变化时改写 role="status" 的内容，避免每 3 秒播报 */
   function setConnection(state, message) {
-    var dot = $("service-dot");
+    var live = $("service-live");
     var text = $("service-state");
     var main = $("main");
 
-    if (dot) dot.setAttribute("data-state", state);
+    if (live) live.setAttribute("data-state", state);
     if (text) {
       text.setAttribute("data-state", state);
       setText(text, message);
@@ -342,8 +371,9 @@
     if (!body) return;
 
     body.textContent = "";
-    siteRefs = sites.map(function (site) {
+    siteRefs = sites.map(function (site, index) {
       var row = document.createElement("tr");
+      row.style.setProperty("--i", String(index));   // 入场错峰（见 style.css）
 
       var nameCell = document.createElement("td");
       var name = document.createElement("span");
@@ -374,7 +404,7 @@
       row.append(nameCell, stateCell, codeCell, latencyCell);
       body.appendChild(row);
 
-      return { state: state, stateText: stateText, code: codeCell, latency: latencyCell, error: error };
+      return { state: state, stateText: stateText, code: codeCell, latency: latencyCell, error: error, status: null };
     });
   }
 
@@ -383,7 +413,10 @@
       var ref = siteRefs[index];
       if (!ref) return;
       var up = site.status === "up";
-      ref.state.setAttribute("data-state", up ? "up" : "down");
+      var statusKey = up ? "up" : "down";
+      ref.state.setAttribute("data-state", statusKey);
+      if (ref.status !== null && ref.status !== statusKey) ping(ref.state);
+      ref.status = statusKey;
       setText(ref.stateText, site.status_text || (up ? "正常" : "异常"));
       setText(ref.code, isNum(site.http_code) ? site.http_code : "—");
       setText(ref.latency, isNum(site.latency_ms) ? site.latency_ms + " ms" : "—");
@@ -401,6 +434,7 @@
       if (table) table.hidden = true;
       if (empty) {
         empty.hidden = false;
+        empty.removeAttribute("data-loading");   // 已不是「加载中」状态，停止呼吸
         setText(
           empty,
           enabled
@@ -414,7 +448,10 @@
     }
 
     if (table) table.hidden = false;
-    if (empty) empty.hidden = true;
+    if (empty) {
+      empty.hidden = true;
+      empty.removeAttribute("data-loading");
+    }
 
     var signature = sitesSignature(sites);
     if (signature !== sitesKey) {
@@ -433,11 +470,12 @@
     list.textContent = "";
     cliRefs = {};
 
-    Object.keys(cli).forEach(function (key) {
+    Object.keys(cli).forEach(function (key, index) {
       var item = cli[key] || {};
 
       var details = document.createElement("details");
       details.className = "cli";
+      details.style.setProperty("--i", String(index));   // 入场错峰（见 style.css）
 
       var summary = document.createElement("summary");
       var mark = document.createElement("span");
@@ -456,7 +494,7 @@
       details.append(summary, output);
       list.appendChild(details);
 
-      cliRefs[key] = { state: state, output: output };
+      cliRefs[key] = { state: state, output: output, ok: null };
     });
   }
 
@@ -468,6 +506,8 @@
       var ok = item.success === true;
 
       ref.state.setAttribute("data-state", ok ? "ok" : "fail");
+      if (ref.ok !== null && ref.ok !== ok) ping(ref.state);
+      ref.ok = ok;
       setText(ref.state, ok ? "成功" : "失败");
 
       var text = item.output || "";
@@ -486,6 +526,7 @@
       if (list) list.textContent = "";
       if (empty) {
         empty.hidden = false;
+        empty.removeAttribute("data-loading");   // 已不是「加载中」状态，停止呼吸
         setText(
           empty,
           data.cli_enabled === false
@@ -498,7 +539,10 @@
       return;
     }
 
-    if (empty) empty.hidden = true;
+    if (empty) {
+      empty.hidden = true;
+      empty.removeAttribute("data-loading");
+    }
 
     var signature = keys.join("\u0001");
     if (signature !== cliKey) {
@@ -513,6 +557,7 @@
   function render(data) {
     hasData = true;
     setConnection("up", "在线");
+    pulseTick();
     renderCpu(data);
     renderGpu(data);
     renderMemory(data);
@@ -601,6 +646,13 @@
         /* 用内置默认值继续 */
       })
       .then(function () {
+        // 心跳结束后把类摘掉，下次轮询重新触发；只挂一次监听
+        var live = $("service-live");
+        if (live) {
+          live.addEventListener("animationend", function (event) {
+            if (event.animationName === "pulse-sweep") live.classList.remove("is-ticking");
+          });
+        }
         fetchStatus();
         if (timer) clearInterval(timer);
         timer = setInterval(fetchStatus, settings.refreshInterval);

@@ -15,8 +15,13 @@
   <div class="sheet">
     <header class="masthead">
       <h1 class="masthead__title" id="page-title">PulseBoard</h1>
-      <p class="live">
-        <span class="dot" id="service-dot" data-state="unknown" aria-hidden="true"></span>
+      <p class="live" id="service-live" data-state="unknown">
+        <!-- 心跳波形：路径与 favicon 同源，viewBox 裁到波形区域。
+             .pulse__line 是常驻底线（随连接状态变色），.pulse__spark 是每次轮询成功时扫过的 lavender 高亮段 -->
+        <svg class="pulse" viewBox="8 17 48 30" aria-hidden="true" focusable="false">
+          <path class="pulse__line" d="M10 32 h12 l6 -13 l8 26 l6 -13 h12"/>
+          <path class="pulse__spark" d="M10 32 h12 l6 -13 l8 26 l6 -13 h12"/>
+        </svg>
         <span class="live__state" id="service-state" role="status" aria-live="polite">正在连接</span>
       </p>
     </header>
@@ -111,14 +116,14 @@
           </thead>
           <tbody id="sites-body"></tbody>
         </table>
-        <p class="empty" id="sites-empty">正在读取数据…</p>
+        <p class="empty" id="sites-empty" data-loading="true">正在读取数据…</p>
       </section>
 
       <!-- 命令行信息：原生折叠，展开状态在刷新之间保留 -->
       <section class="section" aria-labelledby="cli-heading">
         <h2 class="section__title" id="cli-heading">命令行信息</h2>
         <div id="cli-list"></div>
-        <p class="empty" id="cli-empty">正在读取数据…</p>
+        <p class="empty" id="cli-empty" data-loading="true">正在读取数据…</p>
       </section>
     </main>
   </div>

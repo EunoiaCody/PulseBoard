@@ -203,7 +203,7 @@ url = "https://panel.example.com"
 ### 3.2 网站图标（favicon）
 
 项目自带默认图标 `static/favicon.svg`（圆角方块 + 脉冲波形，用页面主色），
-且**会跟随系统亮/暗主题自动变色**（亮色 Latte 蓝底浅色波形，暗色 Mocha 反之），不配任何东西就能显示。
+且**会跟随系统亮/暗主题自动变色**（亮色 Latte lavender 底浅色波形，暗色 Mocha 反之），不配任何东西就能显示。
 
 想换成自己的，在 `[page] favicon` 里三选一：
 
@@ -411,7 +411,7 @@ sensors                                   # 装了 lm-sensors 后看具体通道
 ```
 桌面（≥720px）                                手机（<720px，单栏）
 ┌──────────────────────────────┬──────────────┐   ┌───────────────┐
-│ PulseBoard          ● 在线    │              │   │ PulseBoard      │
+│ PulseBoard          ∿ 在线    │              │   │ PulseBoard      │
 ├──────────────────────────────┼──────────────┤   ├───────────────┤
 │ 读数                          │ 网站          │   │ 读数           │
 │ CPU 占用            12.9 %   │ 官网 ● 正常   │   │ CPU 占用  12.9%│
@@ -438,6 +438,22 @@ sensors                                   # 装了 lm-sensors 后看具体通道
   同时保留最后一次成功的数据并转灰（提示数据已过期）
 - 单个分区/网卡读不到时只那一行显示「不可用」与原因（如 `网卡不存在：enp9s9`），其它行照常刷新
 
+#### 动效
+
+所有动效都是 CSS（`static/style.css` 顶部的 `--dur-*` / `--ease-*` 令牌 + `@keyframes`），
+只由「加载一次」「轮询成功」「状态变化」三类事件触发，**不新增请求、不新增定时器、没有 `requestAnimationFrame` 循环**，
+对服务端零开销：
+
+1. **加载入场**（仅一次）：报头与分区标题的发丝线像绘图仪一样从左画出，读数行 / 网站行 / 命令行按顺序上升淡入。
+   元素只改文本不重建，所以后续刷新不会重播。
+2. **心跳**（每次轮询成功）：报头左侧与 favicon 同源的脉冲波形扫过一段 lavender 高亮，说明「这一轮数据到了」；
+   连接失败时不再跳动，读数转灰提示已过期。
+3. **状态变化**（事件触发）：网站 / 命令行的状态在成功与失败之间翻转时，状态词外扩散一个淡出的环；
+   进度条跨过 `bar_warn_percent` / `bar_crit_percent` 阈值时颜色平滑过渡而不是硬切。
+4. **加载中**（过渡态）：还没拿到数据时状态词与空状态文案缓慢呼吸，拿到数据即停止。
+
+全部动效都尊重 `prefers-reduced-motion: reduce`，开启后一律关闭且内容完整可见。
+
 ### 7.2 主题
 
 令牌名与 shadcn/ui 保持一致（`--background` / `--foreground` / `--primary` / `--muted-foreground` /
@@ -452,16 +468,22 @@ sensors                                   # 装了 lm-sensors 后看具体通道
 | Secondary Pane | `mantle` | `mantle` | `--card`（仅 CLI 输出块） |
 | Sub-Headlines, Labels | `subtext1` | `subtext1` | `--muted-foreground` |
 | Surface Elements | `surface0` / `surface2` | `surface0` / `surface2` | `--border` / `--border-strong` |
-| Links / Tags | `blue` | `blue` | `--primary`、`--ring` |
+| Links / Tags | `lavender` | `lavender` | `--primary`、`--ring` |
 | Success / Warnings / Errors | `green` / `yellow` / `red` | 同 | `--success` / `--warning` / `--destructive` |
 
-两处以「可读性优先」为由的偏差：`--muted-foreground` 用 `subtext1` 而非 `subtext0`
+强调色用 Catppuccin **Lavender**（Latte `#7287fd` / Mocha `#b4befe`）：Mocha 下对 `base` 有 9.17:1；
+Latte 下只有 2.81:1，低于非文本图形 3:1 的参考线，因此 lavender 只用在「旁边一定有等值文字」的图形上
+（进度条填充、焦点环、心跳高亮），正文与状态词不依赖它。
+
+三处以「可读性优先」为由的偏差：`--muted-foreground` 用 `subtext1` 而非 `subtext0`
 （Latte 下 `subtext0` 在 `base` 上只有 4.37:1，小字不够）；Latte 的 `green` / `yellow`
 在 `base` 上只有 2.96:1 / 2.31:1，因此状态**文字**色分模式处理（Mocha 用 accent 色，
-Latte 的“正常”回退到 `text` 色，颜色交给圆点与进度条，且状态本身另有文字说明）。
+Latte 的“正常”回退到 `text` 色，颜色交给圆点与进度条，且状态本身另有文字说明）；
+Latte lavender 的 2.81:1 如上所述只用于非文本图形。
 
 页面已内置语义化标签、跳转链接、`role="status"`、表格 `caption` / `th[scope]`、
-状态“颜色+文字”双重表达、`:focus-visible` 焦点环、`prefers-reduced-motion`（关闭唯一的进度条过渡动效）。
+状态“颜色+文字”双重表达、`:focus-visible` 焦点环、`prefers-reduced-motion`
+（关闭全部入场、心跳、状态提示与进度条过渡动效）。
 
 ### 7.3 接口
 

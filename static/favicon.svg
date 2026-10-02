@@ -1,14 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <!-- PulseBoard 默认图标：圆角方块 + 脉冲波形
-       颜色取自 Catppuccin 主题里的主色（和页面上的进度条/焦点环同一个蓝）：
-         亮色 Latte：底 #1e66f5 / 波形 #eff1f5
-         暗色 Mocha：底 #89b4fa / 波形 #1e1e2e
+       颜色取自 Catppuccin 主题里的强调色（和页面上的进度条/焦点环/心跳同一个 lavender）：
+         亮色 Latte：底 #7287fd / 波形 #eff1f5
+         暗色 Mocha：底 #b4befe / 波形 #1e1e2e
        跟随系统亮暗主题自动切换，不需要两套文件 -->
   <style>
-    .tile { fill: #1e66f5; }
+    .tile { fill: #7287fd; }
     .wave { stroke: #eff1f5; }
     @media (prefers-color-scheme: dark) {
-      .tile { fill: #89b4fa; }
+      .tile { fill: #b4befe; }
       .wave { stroke: #1e1e2e; }
     }
   </style>

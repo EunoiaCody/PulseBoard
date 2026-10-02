@@ -55,8 +55,8 @@
 │   └── cli.py           # 预设命令执行器（白名单、shell=False、强制超时、输出截断）
 ├── templates/index.html # 唯一页面：语义化结构 + 静态页头（JS 不可用时也能看到标题）
 ├── static/
-│   ├── app.js           # 轮询 + 渲染（IIFE，约 615 行）
-│   ├── style.css        # Catppuccin 令牌 + 布局（约 500 行，60 个 CSS 变量）
+│   ├── app.js           # 轮询 + 渲染 + 动效触发（IIFE，约 670 行）
+│   ├── style.css        # Catppuccin 令牌 + 布局 + 动效（约 675 行，60+ 个 CSS 变量）
 │   └── favicon.svg      # 默认图标（SVG 内部有 prefers-color-scheme，亮暗自动变色）
 ├── deploy/              # systemd 示例（带中文注释）：system 级 / user 级 / RAPL tmpfiles 规则
 └── run.sh               # 一键启动：建 venv → 装依赖 → exec python app.py
@@ -151,7 +151,7 @@ google-chrome-stable --headless=new --disable-gpu --hide-scrollbars \
 - **新增读数行的顺序**：在 `buildReadoutRow(spec)` 的调用处决定，磁盘/网卡行通过 `syncReadoutRows()` 按 key 对齐插入到「功耗」行之前；别用 `innerHTML` 拼接用户数据。
 - **CSS 令牌只改 `static/style.css` 顶部**（`:root` 与 `@media (prefers-color-scheme: dark)` 两处，60 个变量），不写字面色值。令牌名保持 shadcn 风格（`--background`/`--foreground`/`--primary`/`--muted-foreground`/`--border`/`--ring`/`--radius`），取值必须来自 Catppuccin 官方 Style Guide 的功能分类；确需偏离要在注释里写明理由（如 `--muted-foreground` 用 `subtext1` 而非 `subtext0` 是因为对比度）。
 - 主题由 CSS 媒体查询驱动，**JS 不参与亮暗切换**。
-- 尊重 `prefers-reduced-motion`（当前唯一的过渡是进度条）。
+- 尊重 `prefers-reduced-motion`：所有动效（入场 / 心跳 / 状态提示 / 进度条过渡）集中在 `style.css` 的 keyframes 与 `--dur-*`/`--ease-*` 令牌里，新增动效必须走这两套令牌，并在 reduced-motion 下被关闭。
 
 ### 提交
 

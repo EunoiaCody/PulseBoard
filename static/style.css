@@ -6,7 +6,7 @@
        Background Pane  → Base            Secondary Panes → Mantle / Crust
        Surface Elements → Surface 0/1/2    Subtle          → Overlay 1
        Body Copy        → Text             Labels          → Subtext 0/1
-       Links / Tags     → Blue             On Accent       → Base
+       Links / Tags     → Lavender         On Accent       → Base
        Success → Green   Warnings → Yellow   Errors → Red
        Selection → Overlay 2 @ 20-30% 不透明度
    设计方向：机房里的一张仪表记录纸（instrument log sheet）
@@ -25,7 +25,8 @@
   --card-foreground: #4c4f69;     /* text */
   --muted: #ccd0da;               /* surface0 */
   --muted-foreground: #5c5f77;    /* subtext1  Labels（subtext0 只有 4.37:1，小字偏弱） */
-  --primary: #1e66f5;             /* blue      Links/Tags，这里用于焦点环与进度填充 */
+  --primary: #7287fd;             /* lavender  Links/Tags；用作焦点环、进度填充与心跳高亮
+                                     对 base 实测 2.81:1（<3:1），故仅作非文本图形，数值另有文字表达 */
   --primary-foreground: #eff1f5;  /* base      On Accent */
   --secondary: #ccd0da;           /* surface0 */
   --secondary-foreground: #4c4f69;
@@ -47,9 +48,16 @@
   --border: #ccd0da;              /* surface0 发丝线 */
   --border-strong: #acb0be;       /* surface2 分组线 */
   --input: #bcc0cc;               /* surface1 */
-  --ring: #1e66f5;                /* blue */
+  --ring: #7287fd;                /* lavender */
   --selection: rgba(156, 160, 176, 0.25);  /* overlay2 @25% */
   --radius: 2px;
+
+  /* ---- 动效令牌：新增动效一律走这三个时长与两条缓动，方便统一调慢/关闭 ---- */
+  --dur-fast: 160ms;
+  --dur-base: 320ms;
+  --dur-slow: 620ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);      /* 入场：快出慢停 */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);   /* 数值/颜色变化 */
 
   /* ---- 三个字体角色：说话 / 测量 / 原文 ---- */
   --font-voice: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
@@ -74,7 +82,7 @@
     --card-foreground: #cdd6f4;
     --muted: #313244;               /* surface0 */
     --muted-foreground: #bac2de;    /* subtext1  9.3:1 */
-    --primary: #89b4fa;             /* blue     7.8:1 */
+    --primary: #b4befe;             /* lavender 9.2:1 */
     --primary-foreground: #1e1e2e;  /* base     On Accent */
     --secondary: #313244;           /* surface0 */
     --secondary-foreground: #cdd6f4;
@@ -92,7 +100,7 @@
     --border: #313244;              /* surface0 */
     --border-strong: #585b70;       /* surface2 */
     --input: #45475a;               /* surface1 */
-    --ring: #89b4fa;                /* blue */
+    --ring: #b4befe;                /* lavender */
     --selection: rgba(147, 153, 178, 0.25);  /* overlay2 @25% */
   }
 }
@@ -141,13 +149,50 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   top: 0;
   z-index: 10;
   padding: 10px 14px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  /* 用前景色做底：lavender 属中间调，无论压 base 还是 text 字都达不到 4.5:1 */
+  background: var(--foreground);
+  color: var(--background);
   font-size: 13px;
   border-radius: var(--radius);
 }
 
 .skip-link:focus { left: 16px; top: 14px; }
+
+/* -----------------------------------------------------------------------------
+   动效：只由「加载一次」「轮询成功」「状态变化」三类事件触发
+   -----------------------------------------------------------------------------
+   原则：全部走 transform / opacity / stroke-dashoffset（合成层友好），
+   不用 requestAnimationFrame 循环，也不新增任何网络请求或定时器。 */
+
+/* 发丝线像绘图仪一样从左画到右 */
+@keyframes rule-draw {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* 入场：淡入并轻微上移 */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* 慢呼吸：仅用于「还没拿到数据」的过渡态 */
+@keyframes breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+/* 心跳：lavender 高亮段沿着固定波形扫过一次（路径全长约 80 个单位） */
+@keyframes pulse-sweep {
+  from { stroke-dashoffset: 106; }
+  to { stroke-dashoffset: 26; }
+}
+
+/* 状态变化：一个扩散并淡出的环，回答「刚才变了什么」 */
+@keyframes ping {
+  from { opacity: 0.85; transform: scale(0.6); }
+  to { opacity: 0; transform: scale(1.7); }
+}
 
 /* -----------------------------------------------------------------------------
    纸张与报头
@@ -159,13 +204,26 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 }
 
 .masthead {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px 32px;
   padding-bottom: 22px;
-  border-bottom: 1px solid var(--border-strong);
+}
+
+/* 报头下的发丝线：像绘图仪一样从左画到右（仅在加载时一次） */
+.masthead::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border-strong);
+  transform-origin: left center;
+  animation: rule-draw var(--dur-slow) var(--ease-out) both;
 }
 
 .masthead__title {
@@ -173,6 +231,7 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   font-size: 22px;
   font-weight: 500;
   line-height: 1.25;
+  animation: rise var(--dur-base) var(--ease-out) both;
 }
 
 .live {
@@ -181,10 +240,53 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   align-items: center;
   gap: 6px 14px;
   font-size: 13px;
+  color: var(--muted-foreground);
+  animation: rise var(--dur-base) var(--ease-out) 60ms both;
 }
 
 .live__state { font-variant-numeric: tabular-nums; }
-.live__state[data-state="down"] { color: var(--destructive-text); }
+.live[data-state="up"] .live__state { color: var(--foreground); }
+.live[data-state="down"] .live__state { color: var(--destructive-text); }
+
+/* 心跳波形：与 favicon 同源的脉冲线。
+   .pulse__line 常驻底线（随连接状态变色），.pulse__spark 是每次轮询成功的 lavender 高亮段 */
+.pulse {
+  display: block;
+  width: 44px;
+  height: 14px;
+  flex: none;
+  overflow: visible;
+  color: var(--muted-foreground);
+}
+
+.live[data-state="up"] .pulse { color: var(--success); }
+.live[data-state="down"] .pulse { color: var(--destructive); }
+
+.pulse__line,
+.pulse__spark {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pulse__line { stroke: currentColor; opacity: 0.5; }
+
+.pulse__spark {
+  stroke: var(--primary);
+  stroke-dasharray: 26 80;   /* 26 可见 + 80 空白；周期 106 = 26 + 波形全长约 80 */
+  stroke-dashoffset: 26;     /* 静止时停在路径末端之外，不可见 */
+}
+
+/* 还没拿到数据：底线慢慢呼吸，说明是「正在连接」而不是死机 */
+.live[data-state="unknown"] .pulse {
+  animation: breathe 1.8s var(--ease-standard) infinite;
+}
+
+/* 每次轮询成功：lavender 高亮段扫过一次，证明数据刚刚更新 */
+.live.is-ticking .pulse__spark {
+  animation: pulse-sweep var(--dur-slow) var(--ease-out);
+}
 
 .dot {
   width: 7px;
@@ -208,18 +310,51 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 }
 
 .section__title {
+  position: relative;
   font-family: var(--font-voice);
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.02em;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--border-strong);
 }
+
+.section__title::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--border-strong);
+  transform-origin: left center;
+  animation: rule-draw var(--dur-slow) var(--ease-out) both;
+}
+
+/* 三个分区的线依次画出，形成从上到下的绘图节奏 */
+.main > .section:nth-child(1) .section__title::after { animation-delay: 120ms; }
+.main > .section:nth-child(2) .section__title::after { animation-delay: 200ms; }
+.main > .section:nth-child(3) .section__title::after { animation-delay: 280ms; }
 
 /* -----------------------------------------------------------------------------
    读数：定义列表 + 右对齐数值列 + 阈值进度
    -------------------------------------------------------------------------- */
 .readouts { margin-top: 2px; }
+
+/* 读数行依次上升入场（仅加载时一次；已有行只改文本，不会重播） */
+.readouts > .readout {
+  animation: rise var(--dur-base) var(--ease-out) both;
+}
+.readouts > .readout:nth-child(1) { animation-delay: 180ms; }
+.readouts > .readout:nth-child(2) { animation-delay: 225ms; }
+.readouts > .readout:nth-child(3) { animation-delay: 270ms; }
+.readouts > .readout:nth-child(4) { animation-delay: 315ms; }
+.readouts > .readout:nth-child(5) { animation-delay: 360ms; }
+.readouts > .readout:nth-child(6) { animation-delay: 405ms; }
+.readouts > .readout:nth-child(7) { animation-delay: 450ms; }
+.readouts > .readout:nth-child(8) { animation-delay: 495ms; }
+.readouts > .readout:nth-child(9) { animation-delay: 540ms; }
+.readouts > .readout:nth-child(10) { animation-delay: 585ms; }
+.readouts > .readout:nth-child(n+11) { animation-delay: 630ms; }
 
 .readout {
   position: relative;
@@ -299,7 +434,9 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   width: 0;
   height: 2px;
   background: var(--primary);
-  transition: width 160ms linear;
+  transition:
+    width 420ms var(--ease-standard),
+    background-color 300ms var(--ease-standard);
 }
 
 .gauge__fill[data-level="warn"] { background: var(--warning); }
@@ -312,6 +449,13 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+}
+
+/* 网站/命令行的条目由 JS 建，--i 由 JS 按顺序写入后错峰入场 */
+.sites tbody tr,
+.cli {
+  animation: rise var(--dur-base) var(--ease-out) both;
+  animation-delay: calc(260ms + var(--i, 0) * 40ms);
 }
 
 .sites th {
@@ -364,6 +508,7 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 .sites__latency { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 
 .state {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -418,9 +563,26 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
 
 .cli__name { font-family: var(--font-voice); font-size: 15px; }
 
-.cli__state { margin-left: auto; font-size: 12.5px; }
+.cli__state { position: relative; margin-left: auto; font-size: 12.5px; }
 .cli__state[data-state="ok"] { color: var(--success-text); }
 .cli__state[data-state="fail"] { color: var(--destructive-text); }
+
+/* 状态变化提示：只在状态真的变了时才由 JS 加 .is-pinged（首屏不算变化）。
+   基础 opacity 为 0，所以动画结束后环自动隐形，不会残留 */
+.state.is-pinged::before,
+.cli__state.is-pinged::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  border: 1.5px solid currentColor;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  animation: ping var(--dur-slow) var(--ease-out);
+}
 
 .cli__output {
   margin: 0 0 14px;
@@ -437,6 +599,11 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   overflow: auto;
 }
 
+/* 原生 details 无法 transition，开合时用一次性 keyframe 补一个轻揭示 */
+.cli[open] .cli__output {
+  animation: rise var(--dur-fast) var(--ease-out);
+}
+
 /* -----------------------------------------------------------------------------
    空状态与数据过期
    -------------------------------------------------------------------------- */
@@ -445,6 +612,11 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   padding: 14px 0 2px;
   font-size: 13.5px;
   color: var(--muted-foreground);
+}
+
+/* 仅「还没读到数据」时呼吸；拿到数据或换成正式说明后 JS 会摘掉 data-loading */
+.empty[data-loading] {
+  animation: breathe 1.8s var(--ease-standard) infinite;
 }
 
 /* 数据过期：读数、名称、输出全部转灰，只保留状态色（状态才有意义） */
@@ -491,8 +663,13 @@ h1, h2, p, dl, dd, pre, figure { margin: 0; }
   .sites th { padding-right: 8px; }
 }
 
-/* 尊重系统的减少动态偏好：进度条与折叠标记不再过渡 */
+/* 尊重系统的减少动态偏好：入场、心跳、状态提示、进度条过渡全部关闭 */
 @media (prefers-reduced-motion: reduce) {
-  .gauge__fill,
-  .cli__mark::after { transition: none; }
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
