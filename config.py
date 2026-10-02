@@ -39,8 +39,16 @@ except ModuleNotFoundError:  # pragma: no cover
 
 BASE_DIR = Path(__file__).resolve().parent
 
-#: 配置文件路径，可用环境变量 MONITOR_CONFIG 覆盖
+#: 配置文件路径，可用环境变量 MONITOR_CONFIG 覆盖（覆盖时不再加载下面的本地覆盖文件）
 CONFIG_PATH = os.environ.get("MONITOR_CONFIG") or str(BASE_DIR / "config.toml")
+
+#: 本地覆盖文件（可选、**不进版本控制**）：逐项覆盖 config.toml 里的值。
+#  用途：config.toml 是仓库里跟踪的文件（上游会更新），你把个人改动放进这里，
+#  这样 `git pull` 永远不会和自己的配置冲突。只写你想改的项即可，其余用默认值。
+LOCAL_CONFIG_PATH = None if os.environ.get("MONITOR_CONFIG") else str(BASE_DIR / "config.local.toml")
+
+#: 实际生效的配置文件列表（启动日志会用）
+CONFIG_SOURCES: list[str] = []
 
 #: 是否成功读取到配置文件
 CONFIG_LOADED = False
@@ -288,27 +296,64 @@ def _coerce(value: Any, default: Any, path: str) -> tuple[Any, str | None]:
 # ---------------------------------------------------------------------------
 # 4. 读取配置
 # ---------------------------------------------------------------------------
+def _read_toml(path: Path) -> tuple[dict[str, Any], str | None]:
+    """读取一个 TOML 文件，返回 (内容, 错误提示)。文件不存在不算错误。"""
+    if not path.is_file():
+        return {}, None
+    try:
+        with open(path, "rb") as fh:
+            data = tomllib.load(fh)
+    except Exception as exc:  # TOML 语法错误等
+        return {}, f"解析配置文件失败（{path}）：{exc}；该文件被忽略"
+    return (data if isinstance(data, dict) else {}), None
+
+
+def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """递归合并两个表：overlay 逐项覆盖 base；表与表合并，而不是整体替换。"""
+    result = dict(base)
+    for key, value in overlay.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def load_config(path: str | None = None) -> dict[str, Any]:
-    """读取配置文件，返回 {变量名: 值}；不修改模块变量。"""
+    """读取配置文件，返回 {变量名: 值}；不修改模块变量。
+
+    默认按 config.toml → config.local.toml 的顺序叠加（后者逐项覆盖），
+    显式传入 path 或设置 MONITOR_CONFIG 时只读那一个文件。
+    """
     global CONFIG_LOADED
 
     warnings: list[str] = []
-    raw: dict[str, Any] = {}
-    target = Path(path or CONFIG_PATH)
-
-    if target.is_file():
-        try:
-            with open(target, "rb") as fh:
-                raw = tomllib.load(fh)
-            CONFIG_LOADED = True
-        except Exception as exc:  # TOML 语法错误等
-            CONFIG_LOADED = False
-            warnings.append(f"解析配置文件失败（{target}）：{exc}；本次全部使用内置默认值")
+    if path:
+        targets = [Path(path)]
     else:
-        CONFIG_LOADED = False
-        warnings.append(f"未找到配置文件 {target}，本次全部使用内置默认值")
+        targets = [Path(CONFIG_PATH)]
+        if LOCAL_CONFIG_PATH:
+            targets.append(Path(LOCAL_CONFIG_PATH))
 
-    flat = _flatten(raw) if isinstance(raw, dict) else {}
+    raw: dict[str, Any] = {}
+    sources: list[str] = []
+    for target in targets:
+        data, error = _read_toml(target)
+        if error:
+            warnings.append(error)
+            continue
+        if data:
+            raw = _deep_merge(raw, data)
+            sources.append(str(target))
+
+    CONFIG_LOADED = bool(sources)
+    CONFIG_SOURCES[:] = sources
+    if not sources:
+        warnings.append(
+            f"未找到配置文件（{'、'.join(str(t) for t in targets)}），本次全部使用内置默认值"
+        )
+
+    flat = _flatten(raw)
 
     merged: dict[str, Any] = {}
     for toml_path, default in _DEFAULTS.items():
@@ -335,7 +380,7 @@ def validate() -> list[str]:
     warnings = list(LOAD_WARNINGS)
 
     if not CONFIG_LOADED:
-        warnings.append("当前使用的是内置默认值，建议直接修改项目根目录的 config.toml")
+        warnings.append("当前使用的是内置默认值，建议修改项目根目录的 config.toml（个人改动放 config.local.toml）")
 
     if REFRESH_INTERVAL_MS < 1000:
         warnings.append("frontend.refresh_interval_ms 小于 1000ms，可能给服务器带来不必要的压力")

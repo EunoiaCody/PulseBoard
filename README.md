@@ -17,6 +17,7 @@
 .                        # 仓库根目录（PulseBoard/）
 ├── app.py               # FastAPI 应用：页面路由 + /api/status 聚合
 ├── config.toml          # 【唯一配置文件】服务/页面/指标/网站/CLI 全部配置，逐项中文注释
+├── config.local.toml    # 可选：个人覆盖项（不进版本控制，见 3.1，避免 git pull 冲突）
 ├── config.py            # 配置加载器：读 config.toml + 内置默认值 + 类型纠正 + 启动自检
 ├── requirements.txt
 ├── README.md
@@ -180,6 +181,48 @@ sudo systemctl edit monitor-webui               # 不改动原文件地覆盖配
 ## 3. 配置文件 `config.toml`（唯一配置入口）
 
 **所有可配置项都在项目根目录的 `config.toml` 里**，每一项都有中文注释。
+
+### 3.1 个人改动请写进 `config.local.toml`（推荐，避免 `git pull` 冲突）
+
+`config.toml` 是仓库跟踪的文件，上游会不断更新它。如果你直接改它，下次 `git pull` 就可能报：
+
+```
+error: Your local changes to the following files would be overwritten by merge:
+    config.toml
+```
+
+所以个人配置放在项目根目录的 **`config.local.toml`**（已在 `.gitignore` 里，不会被提交，不存在也没关系）：
+
+- 它会**逐项覆盖** `config.toml`，只写你要改的项即可，没写的照旧走默认/基础值；
+- 表与表是**深合并**：只写 `[power.gpu]` 里的 `nvidia_smi_timeout`，不会清掉同段其它项；
+- 数组（如 `disk.items` / `[[websites.items]]`）是**整体替换**，写了就以你写的为准；
+- 文件写错语法也只会在启动日志里告警并忽略它，服务照常启动；
+- 启动日志第一行会明确列出实际生效的文件，例如：
+  `生效的配置文件：/opt/monitor-webui/config.toml + /opt/monitor-webui/config.local.toml`
+
+最小示例：
+
+```toml
+# config.local.toml —— 只写你要改的项
+[server]
+port = 38563
+
+[page]
+title = "Eunoia Armbian"
+
+[disk]
+items = ["/", "/home/eunoia/nas"]
+
+[network]
+items = ["wlan0", "tailscale0"]
+
+[[websites.items]]
+name = "Jellyfin"
+url = "https://media.example.com"
+```
+
+> 用 `MONITOR_CONFIG=/path/to/xxx.toml` 时**不再叠加** `config.local.toml`（那个文件就是你的全部配置）。
+> 想把个人配置文件放到别处：`MONITOR_CONFIG=/etc/monitor-webui.toml ./run.sh`。
 
 ### 为什么用 TOML 而不是 JSON
 
@@ -786,7 +829,8 @@ $ curl -s http://127.0.0.1:8080/api/status | python3 -m json.tool | head -30
 | 页面显示「连接失败」 | 后端未启动或被防火墙拦截；前端会自动重试，数据区域保留上一次的值 |
 | systemd 启动失败、日志报权限错误 | 项目在 `/home` 下时 `ProtectHome` 必须为 `no`；同时确认 `User` 有项目目录的读权限 |
 | `systemctl status` 显示找不到 `.venv/bin/uvicorn` | `WorkingDirectory` / `ExecStart` 路径写错，或虚拟环境未在该路径创建 |
-| 改完配置不生效 | 改 `config.toml` 后需 `systemctl restart monitor-webui`（用户级加 `--user`）；`uvicorn --reload` 模式则自动生效 |
+| 改完配置不生效 | 重启服务；并看启动日志第一行“生效的配置文件”是否包含你的 `config.local.toml`。注意 `MONITOR_CONFIG` 一旦设置，`config.local.toml` 就不再叠加 |
+| `git pull` 报 `Your local changes to config.toml would be overwritten` | 你直接改了被跟踪的 `config.toml`。见 3.1：把个人改动搬到 `config.local.toml`，然后 `git checkout -- config.toml && git pull` |
 | 用 `MONITOR_CONFIG` 指向 `/tmp/xxx.toml` 但服务没读到 | service 文件里的 `PrivateTmp=yes` 会给服务一个私有 `/tmp`；把配置文件放到项目目录或 `/etc` 下 |
 | 启动日志出现“未识别的配置项” | `config.toml` 里项名拼错了（或写在了错误的段落里）；对照注释修正即可，其它配置照常生效 |
 | `./run.sh` 报 `.venv/bin/activate: No such file or directory` | 上次建虚拟环境失败（如未装 `python3-venv`）留下了一个空壳 `.venv`。现在的 `run.sh` 会检测并自动重建；旧版请手动 `rm -rf .venv` 后再跑 |

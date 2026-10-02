@@ -14,6 +14,19 @@
 #   * 任何配置问题都不会让服务启动失败或让 /api/status 报错。
 #
 # 想用其它路径的配置文件：设置环境变量 MONITOR_CONFIG=/path/to/config.toml
+#
+# ★ 建议：本文件由仓库跟踪，上游更新时 `git pull` 可能和你改过的行冲突。
+#   个人改动请写进项目根目录的 config.local.toml（该文件不会被提交，也没有它也没关系），
+#   它会逐项覆盖本文件里的值，只写你要改的项即可，例如：
+#
+#     # config.local.toml
+#     [server]
+#     port = 38563
+#     [page]
+#     title = "我的服务器"
+#     [[websites.items]]
+#     name = "Jellyfin"
+#     url = "https://media.example.com"
 # =============================================================================
 
 

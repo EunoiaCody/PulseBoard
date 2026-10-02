@@ -43,7 +43,9 @@ logger = logging.getLogger("monitor-webui")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """启动时打印配置自检结果，便于发现写错的配置项。"""
+    """启动时打印生效的配置文件与自检结果，便于发现写错的配置项。"""
+    sources = getattr(config, "CONFIG_SOURCES", []) or []
+    logger.info("生效的配置文件：%s", " + ".join(sources) if sources else "（无，全部使用内置默认值）")
     for warning in config.validate():
         logger.warning("配置提示：%s", warning)
     logger.info("服务启动完成，页面标题：%s", getattr(config, "PAGE_TITLE", "服务器实时状态"))
