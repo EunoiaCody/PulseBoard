@@ -1,3 +1,5 @@
+<img src="static/favicon.svg" width="64" height="64" alt="服务器实时状态">
+
 # 服务器实时状态 WebUI
 
 一个**轻量级、单页面**的服务器实时状态面板：只显示**当前**状态，没有历史数据、没有数据库、没有 Prometheus / Grafana。
