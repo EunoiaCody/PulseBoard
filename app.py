@@ -48,12 +48,12 @@ async def lifespan(_: FastAPI):
     logger.info("生效的配置文件：%s", " + ".join(sources) if sources else "（无，全部使用内置默认值）")
     for warning in config.validate():
         logger.warning("配置提示：%s", warning)
-    logger.info("服务启动完成，页面标题：%s", getattr(config, "PAGE_TITLE", "服务器实时状态"))
+    logger.info("服务启动完成，页面标题：%s", getattr(config, "PAGE_TITLE", "PulseBoard"))
     yield
 
 
 app = FastAPI(
-    title=str(getattr(config, "PAGE_TITLE", "服务器实时状态")),
+    title=str(getattr(config, "PAGE_TITLE", "PulseBoard")),
     version="1.1.0",
     docs_url="/docs",
     redoc_url=None,
@@ -81,7 +81,7 @@ async def index() -> FileResponse:
 async def api_config() -> dict[str, Any]:
     """前端需要的展示类配置（来源：config.py 第 1、2、7 节）。"""
     return {
-        "page_title": getattr(config, "PAGE_TITLE", "服务器实时状态"),
+        "page_title": getattr(config, "PAGE_TITLE", "PulseBoard"),
         "favicon": config.resolve_favicon(),
         "refresh_interval_ms": int(getattr(config, "REFRESH_INTERVAL_MS", 3000)),
         "fetch_timeout_ms": int(getattr(config, "FETCH_TIMEOUT_MS", 8000)),

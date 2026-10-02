@@ -1,8 +1,8 @@
-<img src="static/favicon.svg" width="64" height="64" alt="服务器实时状态">
+<img src="static/favicon.svg" width="64" height="64" alt="PulseBoard">
 
-# 服务器实时状态 WebUI
+# PulseBoard WebUI
 
-一个**轻量级、单页面**的服务器实时状态面板：只显示**当前**状态，没有历史数据、没有数据库、没有 Prometheus / Grafana。
+一个**轻量级、单页面**的 **PulseBoard** 面板：只显示**当前**状态，没有历史数据、没有数据库、没有 Prometheus / Grafana。
 
 - 后端：Python 3 + FastAPI + psutil + httpx；前端：原生 HTML / CSS / JavaScript（无框架、无构建步骤）
 - 主题：Catppuccin（浅色 Latte / 深色 Mocha，跟随系统自动切换），桌面端与手机端自适应
@@ -409,7 +409,7 @@ sensors                                   # 装了 lm-sensors 后看具体通道
 ```
 桌面（≥720px）                                手机（<720px，单栏）
 ┌──────────────────────────────┬──────────────┐   ┌───────────────┐
-│ 服务器实时状态      ● 在线    │              │   │ 服务器实时状态  │
+│ PulseBoard          ● 在线    │              │   │ PulseBoard      │
 ├──────────────────────────────┼──────────────┤   ├───────────────┤
 │ 读数                          │ 网站          │   │ 读数           │
 │ CPU 占用            12.9 %   │ 官网 ● 正常   │   │ CPU 占用  12.9%│

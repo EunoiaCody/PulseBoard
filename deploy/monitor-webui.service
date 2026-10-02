@@ -19,7 +19,7 @@
 # ===========================================================================
 
 [Unit]
-Description=服务器实时状态 WebUI (monitor-webui)
+Description=PulseBoard WebUI (monitor-webui)
 Documentation=file:///opt/monitor-webui/README.md
 # 等待网络就绪后再启动（网站检测、Docker API 都依赖网络/本地套接字）
 After=network-online.target

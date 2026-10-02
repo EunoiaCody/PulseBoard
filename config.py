@@ -64,7 +64,7 @@ _DEFAULTS: dict[str, Any] = {
     "server.reload": False,
     "server.log_level": "INFO",
     # 2) 页面
-    "page.title": "服务器实时状态",
+    "page.title": "PulseBoard",
     "page.favicon": "",
     # 3) 前端
     "frontend.refresh_interval_ms": 3000,
