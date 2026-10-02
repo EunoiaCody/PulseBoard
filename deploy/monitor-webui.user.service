@@ -29,10 +29,10 @@ Wants=network-online.target
 [Service]
 Type=simple
 
-# 项目根目录（按实际路径修改；本仓库位于 ~/Development/PulseBoard）
-WorkingDirectory=%h/Development/PulseBoard
+# 项目根目录（按实际路径修改，例如 %h/PulseBoard）
+WorkingDirectory=%h/PulseBoard
 # 启动命令（监听地址与端口取 config.toml 的 [server] 段）
-ExecStart=%h/Development/PulseBoard/.venv/bin/python %h/Development/PulseBoard/app.py
+ExecStart=%h/PulseBoard/.venv/bin/python %h/PulseBoard/app.py
 
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
